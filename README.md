@@ -12,6 +12,16 @@ Aplicación de escritorio para registrar y analizar tus hábitos de lectura. Per
 - Tema claro / oscuro
 - Búsqueda de portadas automática
 
+## Code signing policy
+Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+
+- Committers and reviewers: [Owners](https://github.com/orgs/tracklectura/people?query=role%3Aowner)
+- Approvers: [Owners](https://github.com/orgs/tracklectura/people?query=role%3Aowner)
+
+Privacy policy: This program will not transfer any information to other networked 
+systems unless specifically requested by the user or the person installing or 
+operating it.
+
 ## Requisitos
 
 - Java 17 o superior

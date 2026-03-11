@@ -1,0 +1,28 @@
+# Credenciales y configuración local
+config.properties
+*.properties
+
+# Base de datos local SQLite
+*.db
+*.sqlite
+
+# Compilados Java
+*.class
+*.jar
+/out/
+/build/
+/target/
+
+# Portadas de libros descargadas localmente
+tracklectura_covers/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+*.classpath
+*.project
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

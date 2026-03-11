@@ -42,6 +42,10 @@ mkdir -p out
 javac -cp "lib/*" -d out $(find . -name "*.java")
 java -cp "out:lib/*" main.TrackerApp
 ```
+## Documentación
+- [Manual en Español](docs/manual_es.md)
+- [Manual in English](docs/manual_en.md)
+- [Manuel en Français](docs/manual_fr.md)
 
 ## Licencia
 

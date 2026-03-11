@@ -1,10 +1,9 @@
-# Credenciales y configuración local
-config.properties
-*.properties
-
 # Base de datos local SQLite
 *.db
 *.sqlite
+
+# Configuración local del usuario
+config.properties
 
 # Compilados Java
 *.class

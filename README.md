@@ -27,15 +27,6 @@ operating it.
 
 - Java 17 o superior
 
-## Configuración de credenciales
-
-Las credenciales de Supabase **no están incluidas en el repositorio**. La primera vez que ejecutes la aplicación, ve a Ajustes e introduce:
-
-- **Supabase URL**: la URL de tu proyecto (ej. `https://xxxxx.supabase.co`)
-- **Supabase Anon Key**: la clave pública de tu proyecto
-
-Estos valores se guardan cifrados en local en `config.properties`, que está excluido del repositorio mediante `.gitignore`.
-
 ## Compilar y ejecutar
 
 **Windows (PowerShell)**

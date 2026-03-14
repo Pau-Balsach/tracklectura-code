@@ -41,9 +41,7 @@ java -cp "$libs;out" main.TrackerApp
 ```bash
 
 mkdir -p out
-
 javac -cp "lib/*:out" -d out $(find src -name "*.java")
-
 java -cp "lib/*:out" main.TrackerApp
 
 ```

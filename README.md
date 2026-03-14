@@ -12,41 +12,52 @@ Aplicación de escritorio para registrar y analizar tus hábitos de lectura. Per
 - Tema claro / oscuro
 - Búsqueda de portadas automática
 
-## Code signing policy
+## 🚀 Descarga e Instalación
 
-Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+La forma más sencilla de usar TrackLectura en Windows es descargando el instalador oficial desde nuestra sección de lanzamientos:
 
-- Committers and reviewers: [tracklectura](https://github.com/tracklectura)
-- Approvers: [tracklectura](https://github.com/tracklectura)
+👉 **[Descargar TrackLectura v1.2.8 (.exe)](https://github.com/tracklectura/tracklectura-code/releases/latest/download/TrackLectura-1.2.8.exe)**
 
-Privacy policy: This program will not transfer any information to other networked
-systems unless specifically requested by the user or the person installing or
-operating it.
+> **Nota:** Si prefieres no instalar el programa en tu equipo o utilizas otro sistema operativo (Linux / macOS), puedes usar los comandos de compilación y ejecución que se detallan más abajo.
 
 ## Requisitos
 
 - Java 17 o superior
 
-## Compilar y ejecutar
+## 🛠️ Compilar y ejecutar (Alternativa a la instalación)
+
+Si no deseas instalar el programa usando el ejecutable o estás en un sistema operativo diferente a Windows, puedes compilar y ejecutar el código fuente directamente usando la terminal. 
 
 **Windows (PowerShell)**
 ```powershell
-mkdir out
-javac -cp lib/* -d out (Get-ChildItem -Recurse -Filter *.java | Select-Object -ExpandProperty FullName)
-java -cp "out;lib/*" main.TrackerApp
+if (!(Test-Path out)) { mkdir out }
+$libs = (Get-ChildItem lib/*.jar | Select-Object -ExpandProperty FullName) -join ';'
+javac -cp "$libs;out" -d out (Get-ChildItem -Path src -Recurse -Filter *.java | Select-Object -ExpandProperty FullName)
+java -cp "$libs;out" main.TrackerApp
 ```
 
 **Linux / macOS**
+
 ```bash
+
 mkdir -p out
-javac -cp "lib/*" -d out $(find . -name "*.java")
-java -cp "out:lib/*" main.TrackerApp
+javac -cp "lib/*:out" -d out $(find src -name "*.java")
+java -cp "lib/*:out" main.TrackerApp
+
 ```
+
 ## Documentación
+
 - [Manual en Español](docs/manual_es.md)
+
 - [Manual in English](docs/manual_en.md)
+
 - [Manuel en Français](docs/manual_fr.md)
 
+
+
 ## Licencia
+
+
 
 MIT License — ver archivo [LICENSE](LICENSE)

@@ -1,6 +1,5 @@
  Archivos compilados ──────────────────────────────────────
 *.class
-*.jar
 *.war
 *.ear
 

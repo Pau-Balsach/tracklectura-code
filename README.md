@@ -31,16 +31,17 @@ operating it.
 
 **Windows (PowerShell)**
 ```powershell
-mkdir out
-javac -cp lib/* -d out (Get-ChildItem -Recurse -Filter *.java | Select-Object -ExpandProperty FullName)
-java -cp "out;lib/*" main.TrackerApp
+if (!(Test-Path out)) { mkdir out }
+$libs = (Get-ChildItem lib/*.jar | Select-Object -ExpandProperty FullName) -join ';'
+javac -cp "$libs;out" -d out (Get-ChildItem -Path src -Recurse -Filter *.java | Select-Object -ExpandProperty FullName)
+java -cp "$libs;out" main.TrackerApp
 ```
 
 **Linux / macOS**
 ```bash
 mkdir -p out
-javac -cp "lib/*" -d out $(find . -name "*.java")
-java -cp "out:lib/*" main.TrackerApp
+javac -cp "lib/*:out" -d out $(find src -name "*.java")
+java -cp "lib/*:out" main.TrackerApp
 ```
 ## Documentación
 - [Manual en Español](docs/manual_es.md)

@@ -48,10 +48,7 @@ public class SQLiteSyncService implements DatabaseService {
     @Override
     public void conectar() throws Exception {
         if (!utils.ConfigManager.isOfflineMode()) {
-            try {
-                remote.conectar();
-            } catch (Exception e) {
-            }
+            remote.conectar();
         } else {
             isOffline = true;
         }

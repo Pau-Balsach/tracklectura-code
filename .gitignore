@@ -1,27 +1,32 @@
-# Base de datos local SQLite
-*.db
-*.sqlite
+### IntelliJ IDEA ###
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+.kotlin
 
-# Configuración local del usuario
-config.properties
+dist/supabase.properties
+supabase.properties
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
 
-# Compilados Java
-*.class
-*.jar
-/out/
-/build/
-/target/
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
 
-# Portadas de libros descargadas localmente
-tracklectura_covers/
-
-# IDEs
-.idea/
-*.iml
+### VS Code ###
 .vscode/
-*.classpath
-*.project
 
-# Sistema operativo
+### Mac OS ###
 .DS_Store
-Thumbs.db

@@ -562,6 +562,11 @@ public class ReadingTrackerGUI extends JFrame {
             }
         });
 
+        // ─────────────────────────────────────────────────────────────────────────────
+        // REEMPLAZAR en ReadingTrackerGUI.java el bloque subirPortadaBtn (líneas
+        // ~565-598)
+        // ─────────────────────────────────────────────────────────────────────────────
+
         subirPortadaBtn.addActionListener(e -> {
             String libro = libroSearch.getSelectedBook();
             if (libro == null) {
@@ -578,22 +583,83 @@ public class ReadingTrackerGUI extends JFrame {
                 File selectedFile = chooser.getSelectedFile();
                 int libroId = DatabaseManager.obtenerLibroId(libro);
 
-                String localPath = utils.FileUtil.saveBookCover(selectedFile, libroId);
-                if (localPath != null) {
-                    DatabaseManager.guardarCoverUrl(libroId, localPath);
-                    cachePortadas.clear(); // Limpiamos todo el caché para forzar recarga absoluta
-                    cargarPortadaAsincrona(libro);
+                // Extraer la extensión del archivo seleccionado
+                String fileName = selectedFile.getName();
+                String extension = fileName.contains(".")
+                        ? fileName.substring(fileName.lastIndexOf('.') + 1)
+                        : "jpg";
 
-                    // Forzar a Swing a redibujar todo el panel lateral
-                    coverLabel.revalidate();
-                    coverLabel.repaint();
-                    mainPanel.revalidate();
-                    mainPanel.repaint();
+                // Deshabilitar el botón mientras se sube para evitar clics dobles
+                subirPortadaBtn.setEnabled(false);
+                subirPortadaBtn.setText("Subiendo...");
 
-                    JOptionPane.showMessageDialog(this, "Portada actualizada correctamente.");
-                } else {
-                    JOptionPane.showMessageDialog(this, "Error al guardar la imagen local.");
-                }
+                // Subir en hilo secundario para no congelar la UI
+                new SwingWorker<String, Void>() {
+
+                    @Override
+                    protected String doInBackground() {
+
+                        // ── Intento 1: subir a Supabase Storage (funciona en cualquier PC) ──
+                        if (!utils.ConfigManager.isOfflineMode()) {
+                            String remoteUrl = utils.BookCoverService.subirPortadaASupabase(
+                                    selectedFile, libroId, extension);
+                            if (remoteUrl != null) {
+                                return remoteUrl; // URL pública → se guardará en BD
+                            }
+                            System.err.println("[GUI] Fallo al subir a Supabase, usando copia local como fallback.");
+                        }
+
+                        // ── Fallback: copiar en local (modo offline o si Supabase falla) ──
+                        // La portada funcionará en este PC pero no en otros.
+                        return utils.FileUtil.saveBookCover(selectedFile, libroId);
+                    }
+
+                    @Override
+                    protected void done() {
+                        subirPortadaBtn.setEnabled(true);
+                        subirPortadaBtn.setText("Subir Portada");
+
+                        try {
+                            String coverUrl = get(); // resultado del doInBackground
+
+                            if (coverUrl != null) {
+                                DatabaseManager.guardarCoverUrl(libroId, coverUrl);
+                                cachePortadas.clear(); // forzar recarga de la imagen
+                                cargarPortadaAsincrona(libro);
+                                coverLabel.revalidate();
+                                coverLabel.repaint();
+                                mainPanel.revalidate();
+                                mainPanel.repaint();
+
+                                // Informar al usuario si quedó guardada en local (modo degradado)
+                                if (!coverUrl.startsWith("http")) {
+                                    JOptionPane.showMessageDialog(
+                                            ReadingTrackerGUI.this,
+                                            "⚠️ Portada guardada solo en este equipo.\n" +
+                                                    "No se pudo subir a la nube (sin conexión o sin sesión activa).\n" +
+                                                    "Vuelve a subirla cuando estés online.",
+                                            "Portada local",
+                                            JOptionPane.WARNING_MESSAGE);
+                                } else {
+                                    JOptionPane.showMessageDialog(
+                                            ReadingTrackerGUI.this,
+                                            "✅ Portada subida a la nube.\nEstarás disponible desde cualquier equipo.");
+                                }
+                            } else {
+                                JOptionPane.showMessageDialog(
+                                        ReadingTrackerGUI.this,
+                                        "❌ No se pudo guardar la portada.");
+                            }
+
+                        } catch (Exception ex) {
+                            subirPortadaBtn.setEnabled(true);
+                            subirPortadaBtn.setText("Subir Portada");
+                            JOptionPane.showMessageDialog(
+                                    ReadingTrackerGUI.this,
+                                    "❌ Error inesperado: " + ex.getMessage());
+                        }
+                    }
+                }.execute();
             }
         });
     }

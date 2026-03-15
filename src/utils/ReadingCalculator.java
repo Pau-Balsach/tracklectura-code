@@ -91,4 +91,47 @@ public final class ReadingCalculator {
         }
         return null; // válido
     }
+
+    // --- NUEVOS MÉTODOS PARA GRÁFICOS ---
+
+    /**
+     * Extrae la hora de la sesión SOLO si fue registrada con formato de hora.
+     * Resuelve el problema de las sesiones manuales.
+     */
+    public static Integer extraerHoraSegura(String fechaStr) {
+        if (fechaStr == null || !fechaStr.contains(":")) return null; // Ignora sesiones sin hora
+        try {
+            String clean = fechaStr.replace(",", "").trim();
+            // Soporta formatos con o sin coma: "15/03/2026 06:26" o "15/03/2026, 06:26"
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            return java.time.LocalDateTime.parse(clean, fmt).getHour();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Extrae el día de la semana (1=Lunes, 7=Domingo) */
+    public static Integer extraerDiaSemana(String fechaStr) {
+        if (fechaStr == null || fechaStr.isEmpty()) return null;
+        try {
+            String soloFecha = fechaStr.contains(" ") ? fechaStr.split(" ")[0].replace(",", "") : fechaStr;
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            return java.time.LocalDate.parse(soloFecha, fmt).getDayOfWeek().getValue();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Extrae el mes y año (ej. "2026-03") para la evolución mensual */
+    public static String extraerMesAnio(String fechaStr) {
+        if (fechaStr == null || fechaStr.isEmpty()) return null;
+        try {
+            String soloFecha = fechaStr.contains(" ") ? fechaStr.split(" ")[0].replace(",", "") : fechaStr;
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            java.time.LocalDate date = java.time.LocalDate.parse(soloFecha, fmt);
+            return String.format("%04d-%02d", date.getYear(), date.getMonthValue());
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

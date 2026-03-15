@@ -113,6 +113,10 @@ public class DatabaseManager {
         return service.obtenerTodosLosLibros();
     }
 
+    public static List<model.Libro> obtenerTodosLosLibrosDesde(String timestamp) {
+        return service.obtenerTodosLosLibrosDesde(timestamp);
+    }
+
     public static int obtenerUltimaPaginaLeida(int libroId) {
         return service.obtenerUltimaPaginaLeida(libroId);
     }
@@ -153,6 +157,10 @@ public class DatabaseManager {
 
     public static List<Sesion> obtenerSesionesPorLibro(int libroId) {
         return service.obtenerSesionesPorLibro(libroId);
+    }
+
+    public static List<Sesion> obtenerTodasLasSesionesDesde(String timestamp) {
+        return service.obtenerTodasLasSesionesDesde(timestamp);
     }
 
     public static boolean eliminarSesion(int sessionId) {

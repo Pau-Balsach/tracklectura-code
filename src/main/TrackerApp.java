@@ -25,7 +25,7 @@ public class TrackerApp {
         // --- Cargar credenciales de Supabase de forma segura ---
         cargarCredencialesSupabase();
 
-        // Hook de apagado: sincronizar cambios locales antes de cerrar la JVM
+        // Hook de apagado: sincronizar cambios locales
         Runtime.getRuntime().addShutdownHook(new Thread(DatabaseManager::cerrarYSincronizar));
 
         // Aplicar tema visual (FlatLaf) según la preferencia guardada
@@ -47,29 +47,9 @@ public class TrackerApp {
                 () -> new LoginWindow(() -> new ReadingTrackerGUI().setVisible(true)).setVisible(true));
     }
 
-    /**
-     * Estrategia de carga de credenciales (tres niveles de fallback):
-     *
-     * 1. Variables de entorno — ideal para CI/CD y usuarios avanzados.
-     * Ejemplo en Windows: setx SUPABASE_URL "https://xxx.supabase.co"
-     * Ejemplo en Linux/Mac: export SUPABASE_URL="https://xxx.supabase.co"
-     *
-     * 2. Archivo supabase.properties junto al JAR — para distribución
-     * a usuarios finales sin que las claves estén en el código.
-     * Contenido del archivo:
-     * supabase.url=https://xxx.supabase.co
-     * supabase.anonKey=eyJhbGci...
-     * IMPORTANTE: añadir "supabase.properties" al .gitignore
-     *
-     * 3. Configuración previa guardada por el propio ConfigManager.
-     * Si el usuario ya configuró la app antes, se reutiliza.
-     *
-     * Si ninguna fuente tiene credenciales, se muestra un diálogo
-     * para que el usuario las introduzca manualmente la primera vez.
-     */
     private static void cargarCredencialesSupabase() {
 
-        // Nivel 1: variables de entorno (mayor prioridad, nunca tocan el disco)
+        // Nivel 1: variables de entorno
         String envUrl = System.getenv("SUPABASE_URL");
         String envKey = System.getenv("SUPABASE_ANON_KEY");
         if (envUrl != null && !envUrl.isBlank() && envKey != null && !envKey.isBlank()) {

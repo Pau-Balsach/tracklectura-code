@@ -66,6 +66,18 @@ public class SQLiteSyncService implements DatabaseService {
         }
         conn = DriverManager.getConnection(url);
 
+        // --- OPTIMIZACIÓN: Mejorar rendimiento de I/O de SQLite ---
+        try (Statement stmt = conn.createStatement()) {
+            // WAL (Write-Ahead Logging): Permite lectura/escritura concurrente
+            stmt.execute("PRAGMA journal_mode = WAL;");
+            // NORMAL: Ideal para WAL, mejora enormemente la velocidad de escritura sin riesgo en fsync()
+            stmt.execute("PRAGMA synchronous = NORMAL;");
+            // 64MB de Caché
+            stmt.execute("PRAGMA cache_size = -64000;");
+        } catch (Exception e) {
+            System.err.println("Aviso: No se pudieron aplicar PRAGMAs de optimización en SQLite: " + e.getMessage());
+        }
+
         retryScheduler.scheduleWithFixedDelay(() -> {
             if (!utils.ConfigManager.isOfflineMode() && syncPending.get()) {
                 System.out.println("🔄 Reintentando sincronización de pendientes...");
@@ -490,8 +502,12 @@ public class SQLiteSyncService implements DatabaseService {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        if (list.isEmpty() && !isOffline)
-            return remote.obtenerSesionesPorLibro(lId);
+        
+        // Eliminado el fallback a 'remote.obtenerSesionesPorLibro(lId)' si list.isEmpty()
+        // porque rompe el borrado de la última sesión (la recupera de la nube antes de
+        // que la orden de borrado de fondo llegue al servidor).
+        // La app ya sincroniza la base de datos local al inicio y en background.
+        
         return list;
     }
 
@@ -531,18 +547,17 @@ public class SQLiteSyncService implements DatabaseService {
             boolean ok = ps.executeUpdate() > 0;
             if (ok && uuid != null && !utils.ConfigManager.isOfflineMode()) {
                 final String finalUuid = uuid;
-                syncExecutor.submit(() -> {
-                    if (!remote.eliminarSesionPorUuid(finalUuid)) {
-                        try (PreparedStatement psDel = conn.prepareStatement(
-                                "INSERT OR IGNORE INTO deleted_sesiones(uuid, user_id) VALUES(?,?)")) {
-                            psDel.setString(1, finalUuid);
-                            psDel.setString(2, getLocalUserId());
-                            psDel.executeUpdate();
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-                });
+                // MEJORA: Registrar en deleted_sesiones de inmediato (previene race-condition al reinstanciar en descargas rápidas)
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "INSERT OR IGNORE INTO deleted_sesiones(uuid, user_id) VALUES(?,?)")) {
+                    psDel.setString(1, finalUuid);
+                    psDel.setString(2, getLocalUserId());
+                    psDel.executeUpdate();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+                syncPending.set(true);
+                syncExecutor.execute(this::sincronizarPendientes);
             }
             return ok;
         } catch (Exception e) {
@@ -553,13 +568,23 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public boolean eliminarSesionPorUuid(String uuid) {
-        if (!utils.ConfigManager.isOfflineMode()) {
-            syncExecutor.submit(() -> remote.eliminarSesionPorUuid(uuid));
-        }
         try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sesiones WHERE uuid=? AND user_id=?")) {
             ps.setString(1, uuid);
             ps.setString(2, getLocalUserId());
-            return ps.executeUpdate() > 0;
+            boolean ok = ps.executeUpdate() > 0;
+            if (ok && !utils.ConfigManager.isOfflineMode()) {
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "INSERT OR IGNORE INTO deleted_sesiones(uuid, user_id) VALUES(?,?)")) {
+                    psDel.setString(1, uuid);
+                    psDel.setString(2, getLocalUserId());
+                    psDel.executeUpdate();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+                syncPending.set(true);
+                syncExecutor.execute(this::sincronizarPendientes);
+            }
+            return ok;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -594,30 +619,22 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public double obtenerPromedioPPH(int libroId) {
-        double avg = obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPph).average().orElse(0.0);
-        if (avg <= 0 && !utils.ConfigManager.isOfflineMode()) return remote.obtenerPromedioPPH(libroId);
-        return avg;
+        return obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPph).average().orElse(0.0);
     }
 
     @Override
     public double obtenerPromedioPPM(int libroId) {
-        double avg = obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPpm).average().orElse(0.0);
-        if (avg <= 0 && !utils.ConfigManager.isOfflineMode()) return remote.obtenerPromedioPPM(libroId);
-        return avg;
+        return obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPpm).average().orElse(0.0);
     }
 
     @Override
     public double obtenerVelocidadMaxima(int libroId) {
-        double max = obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPpm).max().orElse(0.0);
-        if (max <= 0 && !utils.ConfigManager.isOfflineMode()) return remote.obtenerVelocidadMaxima(libroId);
-        return max;
+        return obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPpm).max().orElse(0.0);
     }
 
     @Override
     public double obtenerSesionMasLarga(int libroId) {
-        double max = obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getMinutos).max().orElse(0.0);
-        if (max <= 0 && !utils.ConfigManager.isOfflineMode()) return remote.obtenerSesionMasLarga(libroId);
-        return max;
+        return obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getMinutos).max().orElse(0.0);
     }
 
     private String normalizeDate(String fechaStr) {
@@ -650,27 +667,31 @@ public class SQLiteSyncService implements DatabaseService {
     @Override
     public int obtenerRachaActual() {
         try {
-            List<Sesion> todas = obtenerTodasLasSesiones();
             int racha = 0;
-            if (!todas.isEmpty()) {
-                List<LocalDate> fechas = new ArrayList<>();
-                DateTimeFormatter fmtApp = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                for (Sesion s : todas) {
-                    if (s.getFecha() == null || s.getFecha().isEmpty()) continue;
-                    String f = normalizeDate(s.getFecha());
-                    if (f.equals("N/A")) continue;
-                    try { fechas.add(LocalDate.parse(f, fmtApp)); } catch (Exception ignored) { }
+            List<LocalDate> fechas = new ArrayList<>();
+            DateTimeFormatter fmtApp = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            
+            // OPTIMIZACIÓN: Solo traemos la columna de fecha sin instanciar miles de modelos de Sesion
+            try (PreparedStatement ps = conn.prepareStatement("SELECT fecha FROM sesiones WHERE user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
+                ps.setString(1, getLocalUserId());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String f = normalizeDate(rs.getString("fecha"));
+                        if (f.equals("N/A")) continue;
+                        try { fechas.add(LocalDate.parse(f, fmtApp)); } catch (Exception ignored) { }
+                    }
                 }
-                if (!fechas.isEmpty()) {
-                    LocalDate hoy = LocalDate.now();
-                    List<LocalDate> unicas = fechas.stream().distinct().filter(d -> !d.isAfter(hoy))
-                            .sorted((a, b) -> b.compareTo(a)).collect(Collectors.toList());
-                    if (!unicas.isEmpty() && (unicas.get(0).equals(hoy) || unicas.get(0).equals(hoy.minusDays(1)))) {
-                        racha = 1;
-                        for (int i = 0; i < unicas.size() - 1; i++) {
-                            if (unicas.get(i).minusDays(1).equals(unicas.get(i + 1))) racha++;
-                            else break;
-                        }
+            }
+
+            if (!fechas.isEmpty()) {
+                LocalDate hoy = LocalDate.now();
+                List<LocalDate> unicas = fechas.stream().distinct().filter(d -> !d.isAfter(hoy))
+                        .sorted((a, b) -> b.compareTo(a)).collect(Collectors.toList());
+                if (!unicas.isEmpty() && (unicas.get(0).equals(hoy) || unicas.get(0).equals(hoy.minusDays(1)))) {
+                    racha = 1;
+                    for (int i = 0; i < unicas.size() - 1; i++) {
+                        if (unicas.get(i).minusDays(1).equals(unicas.get(i + 1))) racha++;
+                        else break;
                     }
                 }
             }
@@ -687,9 +708,16 @@ public class SQLiteSyncService implements DatabaseService {
         String hoyNormalizado = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         int total = 0;
         try {
-            for (Sesion s : obtenerTodasLasSesiones()) {
-                if (s.getFecha() == null || s.getFecha().isEmpty()) continue;
-                if (normalizeDate(s.getFecha()).equals(hoyNormalizado)) total += s.getPaginasLeidas();
+            // OPTIMIZACIÓN: Solo leer 'fecha' y 'paginas_leidas', evitando Memory Leaks instanciando todas las sesiones.
+            try (PreparedStatement ps = conn.prepareStatement("SELECT fecha, paginas_leidas FROM sesiones WHERE user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
+                ps.setString(1, getLocalUserId());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        if (normalizeDate(rs.getString("fecha")).equals(hoyNormalizado)) {
+                            total += rs.getInt("paginas_leidas");
+                        }
+                    }
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -880,10 +908,54 @@ public class SQLiteSyncService implements DatabaseService {
     }
 
     @Override
-    public List<Sesion> obtenerTodasLasSesionesDesde(String timestamp) { return new ArrayList<>(); }
+    public List<Sesion> obtenerTodasLasSesionesDesde(String timestamp) {
+        List<Sesion> list = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("SELECT * FROM sesiones WHERE user_id=? ORDER BY id ASC")) {
+            ps.setString(1, getLocalUserId());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Sesion(
+                        rs.getInt("id"),
+                        rs.getString("uuid"),
+                        rs.getInt("libro_id"),
+                        rs.getString("fecha"),
+                        rs.getString("capitulo"),
+                        rs.getInt("pag_inicio"),
+                        rs.getInt("pag_fin"),
+                        rs.getInt("paginas_leidas"),
+                        rs.getDouble("minutos"),
+                        rs.getDouble("ppm"),
+                        rs.getDouble("pph")
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
 
     @Override
-    public List<model.Libro> obtenerTodosLosLibrosDesde(String timestamp) { return new ArrayList<>(); }
+    public List<model.Libro> obtenerTodosLosLibrosDesde(String timestamp) {
+        List<model.Libro> list = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("SELECT * FROM libros WHERE user_id=?")) {
+            ps.setString(1, getLocalUserId());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new model.Libro(
+                        rs.getInt("id"),
+                        rs.getString("nombre"),
+                        rs.getInt("paginas_totales"),
+                        rs.getString("cover_url"),
+                        rs.getString("estado")
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
 
     private void descargarDeNube() {
         if (utils.ConfigManager.isOfflineMode()) return;
@@ -941,6 +1013,15 @@ public class SQLiteSyncService implements DatabaseService {
                             }
                         }
                     }
+                    
+                    // MEJORA: Evitar que sesiones eliminadas asíncronamente se vuelvan a inyectar
+                    boolean eliminadaPendiente = false;
+                    try (PreparedStatement checkDel = conn.prepareStatement("SELECT uuid FROM deleted_sesiones WHERE uuid=?")) {
+                        checkDel.setString(1, uuid);
+                        if (checkDel.executeQuery().next()) eliminadaPendiente = true;
+                    }
+                    if (eliminadaPendiente) continue;
+
                     try (PreparedStatement ps = conn.prepareStatement(
                             "INSERT OR IGNORE INTO sesiones(uuid, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, sincronizado, dirty, id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?)")) {
                         ps.setString(1, uuid); ps.setString(2, getLocalUserId());

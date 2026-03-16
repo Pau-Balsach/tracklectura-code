@@ -24,8 +24,7 @@ public class HistoryWindow extends JDialog {
     private DefaultTableModel modeloTabla;
 
     /** Formatos de fecha aceptados en el formulario de añadir sesión. */
-    private static final DateTimeFormatter FMT_ENTRADA =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter FMT_ENTRADA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     public HistoryWindow(JFrame parent, int libroId, String tituloLibro) {
         super(parent, "📜 Historial de: " + tituloLibro, true);
@@ -36,10 +35,11 @@ public class HistoryWindow extends JDialog {
 
         inicializarTabla();
 
-        // MEJORA: sincronización en hilo secundario para no congelar la ventana
-        sincronizarEnSegundoPlano();
-
+        // Cargar datos locales inmediatamente para no mostrar tabla vacía
         cargarDatos();
+
+        // Sincronizar con la nube en segundo plano; al terminar refresca la tabla
+        sincronizarEnSegundoPlano();
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
         JButton btnAnadir = new JButton("➕ Añadir Sesión");
@@ -98,7 +98,8 @@ public class HistoryWindow extends JDialog {
     private void cargarDatos() {
         modeloTabla.setRowCount(0);
         List<Sesion> listaSesiones = DatabaseManager.obtenerSesionesPorLibro(libroId);
-        if (listaSesiones.isEmpty()) return;
+        if (listaSesiones.isEmpty())
+            return;
 
         listaSesiones.sort((s1, s2) -> Integer.compare(s2.getPaginaInicio(), s1.getPaginaInicio()));
 
@@ -139,7 +140,8 @@ public class HistoryWindow extends JDialog {
                         break;
                     }
                 }
-                if (sigueEnTabla) JOptionPane.showMessageDialog(this, "❌ Error al borrar.");
+                if (sigueEnTabla)
+                    JOptionPane.showMessageDialog(this, "❌ Error al borrar.");
             }
         }
     }
@@ -151,12 +153,12 @@ public class HistoryWindow extends JDialog {
             return;
         }
 
-        int sessionId  = (int) modeloTabla.getValueAt(filaSel, 0);
+        int sessionId = (int) modeloTabla.getValueAt(filaSel, 0);
         String fechaActual = (String) modeloTabla.getValueAt(filaSel, 1);
-        String capActual   = (String) modeloTabla.getValueAt(filaSel, 2);
-        String iniActual   = modeloTabla.getValueAt(filaSel, 3).toString();
-        String finActual   = modeloTabla.getValueAt(filaSel, 4).toString();
-        String minActual   = modeloTabla.getValueAt(filaSel, 6).toString().replace(",", ".");
+        String capActual = (String) modeloTabla.getValueAt(filaSel, 2);
+        String iniActual = modeloTabla.getValueAt(filaSel, 3).toString();
+        String finActual = modeloTabla.getValueAt(filaSel, 4).toString();
+        String minActual = modeloTabla.getValueAt(filaSel, 6).toString().replace(",", ".");
 
         // ── Formulario persistente con JDialog ──────────────────────────────────
         JDialog dialog = new JDialog((JDialog) null, "✏️ Editar Sesión", true);
@@ -164,10 +166,10 @@ public class HistoryWindow extends JDialog {
         dialog.setResizable(false);
 
         JTextField fFecha = new JTextField(fechaActual != null ? fechaActual : "");
-        JTextField fCap   = new JTextField(capActual != null ? capActual : "");
-        JTextField fIni   = new JTextField(iniActual);
-        JTextField fFin   = new JTextField(finActual);
-        JTextField fMin   = new JTextField(minActual);
+        JTextField fCap = new JTextField(capActual != null ? capActual : "");
+        JTextField fIni = new JTextField(iniActual);
+        JTextField fFin = new JTextField(finActual);
+        JTextField fMin = new JTextField(minActual);
 
         // Etiqueta de error roja, inicialmente en blanco
         JLabel lblError = new JLabel(" ");
@@ -183,20 +185,23 @@ public class HistoryWindow extends JDialog {
         gc.anchor = GridBagConstraints.WEST;
 
         String[] etiquetas = {
-            "📅 Fecha (dd/MM/yyyy HH:mm):",
-            "🔖 Capítulo / Relato:",
-            "📄 Página de inicio:",
-            "📄 Página de fin:",
-            "⏱️ Minutos leídos:",
+                "📅 Fecha (dd/MM/yyyy HH:mm):",
+                "🔖 Capítulo / Relato:",
+                "📄 Página de inicio:",
+                "📄 Página de fin:",
+                "⏱️ Minutos leídos:",
         };
         JTextField[] campos = { fFecha, fCap, fIni, fFin, fMin };
 
         for (int i = 0; i < campos.length; i++) {
-            gc.gridx = 0; gc.gridy = i; gc.weightx = 0;
+            gc.gridx = 0;
+            gc.gridy = i;
+            gc.weightx = 0;
             gc.fill = GridBagConstraints.NONE;
             camposPanel.add(new JLabel(etiquetas[i]), gc);
 
-            gc.gridx = 1; gc.weightx = 1.0;
+            gc.gridx = 1;
+            gc.weightx = 1.0;
             gc.fill = GridBagConstraints.HORIZONTAL;
             campos[i].setPreferredSize(new Dimension(180, 26));
             camposPanel.add(campos[i], gc);
@@ -208,7 +213,7 @@ public class HistoryWindow extends JDialog {
         bottomPanel.add(lblError, BorderLayout.NORTH);
 
         JPanel botonesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        JButton btnGuardar  = new JButton("💾 Guardar");
+        JButton btnGuardar = new JButton("💾 Guardar");
         JButton btnCancelar = new JButton("Cancelar");
         botonesPanel.add(btnCancelar);
         botonesPanel.add(btnGuardar);
@@ -258,12 +263,13 @@ public class HistoryWindow extends JDialog {
             }
 
             // 4) Guardar
-            String nCap  = fCap.getText().trim();
-            int nPags    = utils.ReadingCalculator.calcularPaginasLeidas(nIni, nFin);
-            double nPpm  = utils.ReadingCalculator.calcularPPM(nPags, nMin);
-            double nPph  = utils.ReadingCalculator.calcularPPH(nPpm);
+            String nCap = fCap.getText().trim();
+            int nPags = utils.ReadingCalculator.calcularPaginasLeidas(nIni, nFin);
+            double nPpm = utils.ReadingCalculator.calcularPPM(nPags, nMin);
+            double nPph = utils.ReadingCalculator.calcularPPH(nPpm);
 
-            if (DatabaseManager.actualizarSesionCompleta(sessionId, nIni, nFin, nPags, nMin, nPpm, nPph, nCap, fechaTexto)) {
+            if (DatabaseManager.actualizarSesionCompleta(sessionId, nIni, nFin, nPags, nMin, nPpm, nPph, nCap,
+                    fechaTexto)) {
                 dialog.dispose();
                 cargarDatos();
             } else {
@@ -291,10 +297,10 @@ public class HistoryWindow extends JDialog {
 
         // Campos del formulario
         JTextField fFecha = new JTextField(fechaDefecto);
-        JTextField fCap   = new JTextField();
-        JTextField fIni   = new JTextField(String.valueOf(ultimaPag));
-        JTextField fFin   = new JTextField();
-        JTextField fMin   = new JTextField();
+        JTextField fCap = new JTextField();
+        JTextField fIni = new JTextField(String.valueOf(ultimaPag));
+        JTextField fFin = new JTextField();
+        JTextField fMin = new JTextField();
 
         // Etiqueta de error (roja, inicialmente invisible)
         JLabel lblError = new JLabel(" ");
@@ -310,20 +316,23 @@ public class HistoryWindow extends JDialog {
         gc.anchor = GridBagConstraints.WEST;
 
         String[][] filas = {
-            {"📅 Fecha (dd/MM/yyyy HH:mm):", null},
-            {"🔖 Capítulo / Relato:",        null},
-            {"📄 Página de inicio:",          null},
-            {"📄 Página de fin:",             null},
-            {"⏱️ Minutos leídos:",           null},
+                { "📅 Fecha (dd/MM/yyyy HH:mm):", null },
+                { "🔖 Capítulo / Relato:", null },
+                { "📄 Página de inicio:", null },
+                { "📄 Página de fin:", null },
+                { "⏱️ Minutos leídos:", null },
         };
         JTextField[] campos = { fFecha, fCap, fIni, fFin, fMin };
 
         for (int i = 0; i < campos.length; i++) {
-            gc.gridx = 0; gc.gridy = i; gc.weightx = 0;
+            gc.gridx = 0;
+            gc.gridy = i;
+            gc.weightx = 0;
             gc.fill = GridBagConstraints.NONE;
             camposPanel.add(new JLabel(filas[i][0]), gc);
 
-            gc.gridx = 1; gc.weightx = 1.0;
+            gc.gridx = 1;
+            gc.weightx = 1.0;
             gc.fill = GridBagConstraints.HORIZONTAL;
             campos[i].setPreferredSize(new Dimension(180, 26));
             camposPanel.add(campos[i], gc);
@@ -335,7 +344,7 @@ public class HistoryWindow extends JDialog {
         bottomPanel.add(lblError, BorderLayout.NORTH);
 
         JPanel botonesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        JButton btnGuardar  = new JButton("💾 Guardar");
+        JButton btnGuardar = new JButton("💾 Guardar");
         JButton btnCancelar = new JButton("Cancelar");
         botonesPanel.add(btnCancelar);
         botonesPanel.add(btnGuardar);
@@ -385,10 +394,10 @@ public class HistoryWindow extends JDialog {
             }
 
             // 4) Guardar
-            String cap   = fCap.getText().trim();
-            int nPags    = utils.ReadingCalculator.calcularPaginasLeidas(nIni, nFin);
-            double nPpm  = utils.ReadingCalculator.calcularPPM(nPags, nMin);
-            double nPph  = utils.ReadingCalculator.calcularPPH(nPpm);
+            String cap = fCap.getText().trim();
+            int nPags = utils.ReadingCalculator.calcularPaginasLeidas(nIni, nFin);
+            double nPpm = utils.ReadingCalculator.calcularPPM(nPags, nMin);
+            double nPph = utils.ReadingCalculator.calcularPPH(nPpm);
 
             if (DatabaseManager.insertarSesionManual(libroId, fechaTexto, cap, nIni, nFin, nPags, nMin, nPpm, nPph)) {
                 dialog.dispose();
@@ -409,11 +418,13 @@ public class HistoryWindow extends JDialog {
     }
 
     /**
-     * Devuelve {@code true} si la cadena NO corresponde al formato de fecha esperado.
+     * Devuelve {@code true} si la cadena NO corresponde al formato de fecha
+     * esperado.
      * Acepta "dd/MM/yyyy HH:mm" con hora, o "dd/MM/yyyy" sin hora.
      */
     private boolean esFechaInvalida(String texto) {
-        if (texto == null || texto.isBlank()) return true;
+        if (texto == null || texto.isBlank())
+            return true;
         try {
             LocalDateTime.parse(texto, FMT_ENTRADA);
             return false;

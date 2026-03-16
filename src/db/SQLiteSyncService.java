@@ -194,15 +194,16 @@ public class SQLiteSyncService implements DatabaseService {
                         "ppm REAL, " +
                         "pph REAL, " +
                         "fecha TEXT, " +
-                        "dirty INTEGER DEFAULT 0)");
+                        "dirty INTEGER DEFAULT 0, " +
+                        "sincronizado INTEGER DEFAULT 0)");
                 stmt.execute(
-                        "INSERT INTO sesiones_new (id, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty) "
+                        "INSERT INTO sesiones_new (id, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty, sincronizado) "
                                 +
-                                "SELECT id, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty FROM sesiones WHERE id IS NOT NULL");
+                                "SELECT id, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty, COALESCE(sincronizado, 0) FROM sesiones WHERE id IS NOT NULL");
                 stmt.execute(
-                        "INSERT INTO sesiones_new (user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty) "
+                        "INSERT INTO sesiones_new (user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty, sincronizado) "
                                 +
-                                "SELECT user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty FROM sesiones WHERE id IS NULL");
+                                "SELECT user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, dirty, COALESCE(sincronizado, 0) FROM sesiones WHERE id IS NULL");
                 stmt.execute("DROP TABLE sesiones");
                 stmt.execute("ALTER TABLE sesiones_new RENAME TO sesiones");
                 System.out.println("Migración de 'sesiones' completada.");
@@ -677,9 +678,39 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public String obtenerDiaMasLectura(int libroId) {
-        if (utils.ConfigManager.isOfflineMode())
-            return "N/D (Modo Offline)";
-        return remote.obtenerDiaMasLectura(libroId);
+        if (!utils.ConfigManager.isOfflineMode() && !isOffline) {
+            try {
+                String remoteResult = remote.obtenerDiaMasLectura(libroId);
+                if (remoteResult != null && !remoteResult.isEmpty() && !remoteResult.equals("N/D"))
+                    return remoteResult;
+            } catch (Exception e) {
+                System.err.println("[SQLiteSync] Fallo remoto en obtenerDiaMasLectura: " + e.getMessage());
+            }
+        }
+        // Fallback: calcular localmente
+        try {
+            String uid = getLocalUserId();
+            Map<String, Double> porDia = new java.util.HashMap<>();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT fecha, paginas_leidas FROM sesiones WHERE libro_id=? AND user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
+                ps.setInt(1, libroId);
+                ps.setString(2, uid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String dia = normalizeDate(rs.getString("fecha"));
+                        if (!dia.equals("N/A"))
+                            porDia.merge(dia, (double) rs.getInt("paginas_leidas"), Double::sum);
+                    }
+                }
+            }
+            if (!porDia.isEmpty())
+                return porDia.entrySet().stream()
+                        .max(Map.Entry.comparingByValue())
+                        .map(Map.Entry::getKey).orElse("N/D");
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error local en obtenerDiaMasLectura: " + e.getMessage());
+        }
+        return "N/D";
     }
 
     @Override
@@ -769,8 +800,17 @@ public class SQLiteSyncService implements DatabaseService {
     @Override
     public List<DataPoint> obtenerDatosGrafica(String column, int libroId, int minPag, boolean agruparPorDia,
             boolean esHeatmap, boolean esDual) {
-        if (!utils.ConfigManager.isOfflineMode() && !isOffline)
-            return remote.obtenerDatosGrafica(column, libroId, minPag, agruparPorDia, esHeatmap, esDual);
+        if (!utils.ConfigManager.isOfflineMode() && !isOffline) {
+            try {
+                List<DataPoint> remoteResult = remote.obtenerDatosGrafica(column, libroId, minPag, agruparPorDia,
+                        esHeatmap, esDual);
+                if (remoteResult != null && !remoteResult.isEmpty())
+                    return remoteResult;
+                System.out.println("[SQLiteSync] Remoto vacío en obtenerDatosGrafica, usando local.");
+            } catch (Exception e) {
+                System.err.println("[SQLiteSync] Fallo remoto en obtenerDatosGrafica: " + e.getMessage());
+            }
+        }
         List<Sesion> lista = esHeatmap ? obtenerTodasLasSesiones() : obtenerSesionesPorLibro(libroId);
         if (!esHeatmap)
             lista = lista.stream().filter(s -> s.getPaginaInicio() >= minPag).collect(Collectors.toList());
@@ -830,8 +870,15 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public List<String[]> obtenerDatosParaExportar(int libroId, int minPag, String fFiltro, boolean agrupar) {
-        if (!utils.ConfigManager.isOfflineMode() && !isOffline)
-            return remote.obtenerDatosParaExportar(libroId, minPag, fFiltro, agrupar);
+        if (!utils.ConfigManager.isOfflineMode() && !isOffline) {
+            try {
+                List<String[]> remoteResult = remote.obtenerDatosParaExportar(libroId, minPag, fFiltro, agrupar);
+                if (remoteResult != null && !remoteResult.isEmpty())
+                    return remoteResult;
+            } catch (Exception e) {
+                System.err.println("[SQLiteSync] Fallo remoto en obtenerDatosParaExportar: " + e.getMessage());
+            }
+        }
         return new ArrayList<>();
     }
 
@@ -1125,20 +1172,19 @@ public class SQLiteSyncService implements DatabaseService {
                         continue;
 
                     try (PreparedStatement ps = conn.prepareStatement(
-                            "INSERT OR IGNORE INTO sesiones(uuid, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, sincronizado, dirty, id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?)")) {
-                        ps.setString(1, uuid);
-                        ps.setString(2, getLocalUserId());
-                        ps.setInt(3, s.getLibroId());
-                        ps.setString(4, s.getCapitulo());
-                        ps.setInt(5, s.getPaginaInicio());
-                        ps.setInt(6, s.getPaginaFin());
-                        ps.setInt(7, s.getPaginasLeidas());
-                        ps.setDouble(8, s.getMinutos());
-                        ps.setDouble(9, s.getPpm());
-                        ps.setDouble(10, s.getPph());
-                        ps.setString(11, s.getFecha());
-                        ps.setInt(12, 1);
-                        ps.setInt(13, remoteId);
+                            "INSERT OR IGNORE INTO sesiones(id, uuid, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, sincronizado, dirty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,0)")) {
+                        ps.setInt(1, remoteId);
+                        ps.setString(2, uuid);
+                        ps.setString(3, getLocalUserId());
+                        ps.setInt(4, s.getLibroId());
+                        ps.setString(5, s.getCapitulo());
+                        ps.setInt(6, s.getPaginaInicio());
+                        ps.setInt(7, s.getPaginaFin());
+                        ps.setInt(8, s.getPaginasLeidas());
+                        ps.setDouble(9, s.getMinutos());
+                        ps.setDouble(10, s.getPpm());
+                        ps.setDouble(11, s.getPph());
+                        ps.setString(12, s.getFecha());
                         ps.executeUpdate();
                     }
                 }

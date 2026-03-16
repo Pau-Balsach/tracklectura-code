@@ -13,7 +13,7 @@ public class LoginWindow extends JFrame {
 
     private JTextField emailField;
     private JPasswordField passwordField;
-    private JButton loginBtn, signupBtn, offlineBtn;
+    private JButton loginBtn, signupBtn;
     private JLabel statusLabel;
 
     private final Runnable onSuccess;
@@ -43,6 +43,7 @@ public class LoginWindow extends JFrame {
         emailField = new JTextField(utils.ConfigManager.getSavedEmail());
         emailField.setMargin(new Insets(2, 5, 2, 5));
         formPanel.add(emailField);
+        
         formPanel.add(new JLabel("Contraseña:"));
         passwordField = new JPasswordField(utils.ConfigManager.getSavedPassword());
         passwordField.setMargin(new Insets(2, 5, 2, 5));
@@ -52,7 +53,7 @@ public class LoginWindow extends JFrame {
         JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
 
         statusLabel = new JLabel(" ", SwingConstants.CENTER);
-        statusLabel.setForeground(Color.RED);
+        statusLabel.setForeground(getErrorColor());
         bottomPanel.add(statusLabel, BorderLayout.NORTH);
 
         JPanel buttonRow1 = new JPanel(new GridLayout(1, 2, 10, 0));
@@ -61,7 +62,7 @@ public class LoginWindow extends JFrame {
         buttonRow1.add(loginBtn);
         buttonRow1.add(signupBtn);
 
-        offlineBtn = new JButton("Acceder sin conexión (Modo Invitado)");
+        JButton offlineBtn = new JButton("Acceder sin conexión (Modo Invitado)");
         JPanel buttonRow2 = new JPanel(new BorderLayout());
         buttonRow2.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         buttonRow2.add(offlineBtn, BorderLayout.CENTER);
@@ -74,14 +75,16 @@ public class LoginWindow extends JFrame {
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
         add(mainPanel);
 
-        loginBtn.addActionListener(e -> performLogin());
-        signupBtn.addActionListener(e -> performSignup());
-        offlineBtn.addActionListener(e -> performOfflineLogin());
+        loginBtn.addActionListener(ignored -> performLogin());
+        signupBtn.addActionListener(ignored -> performSignup());
+        offlineBtn.addActionListener(ignored -> performOfflineLogin());
 
         // Enter en cualquier campo dispara el login
-        java.awt.event.ActionListener enterListener = e -> loginBtn.doClick();
+        java.awt.event.ActionListener enterListener = ignored -> loginBtn.doClick();
         emailField.addActionListener(enterListener);
         passwordField.addActionListener(enterListener);
+
+        aplicarTema(utils.ConfigManager.isDarkMode());
     }
 
     private void performOfflineLogin() {
@@ -101,7 +104,7 @@ public class LoginWindow extends JFrame {
         }
 
         setButtonsEnabled(false);
-        statusLabel.setForeground(Color.BLUE);
+        statusLabel.setForeground(getInfoColor());
         statusLabel.setText("Conectando...");
 
         new SwingWorker<String, Void>() {
@@ -136,7 +139,7 @@ public class LoginWindow extends JFrame {
         }
 
         setButtonsEnabled(false);
-        statusLabel.setForeground(Color.BLUE);
+        statusLabel.setForeground(getInfoColor());
         statusLabel.setText("Registrando...");
 
         new SwingWorker<String, Void>() {
@@ -188,7 +191,7 @@ public class LoginWindow extends JFrame {
 
             new Thread(() -> DatabaseManager.getService().sincronizarConNube()).start();
         } catch (Exception x) {
-            x.printStackTrace();
+            System.err.println("Error en onLoginSuccess: " + x.getMessage());
         }
         dispose();
         if (onSuccess != null)
@@ -196,7 +199,7 @@ public class LoginWindow extends JFrame {
     }
 
     private void showError(String msg) {
-        statusLabel.setForeground(Color.RED);
+        statusLabel.setForeground(getErrorColor());
         statusLabel.setText("<html><center>" + msg + "</center></html>");
         setButtonsEnabled(true);
     }
@@ -204,5 +207,53 @@ public class LoginWindow extends JFrame {
     private void setButtonsEnabled(boolean enabled) {
         loginBtn.setEnabled(enabled);
         signupBtn.setEnabled(enabled);
+    }
+
+    private void aplicarTema(boolean oscuro) {
+        Color bg = oscuro ? new Color(30, 30, 30) : new Color(245, 245, 245);
+        Color fg = oscuro ? Color.WHITE : Color.BLACK;
+        Color inputBg = oscuro ? new Color(50, 50, 50) : Color.WHITE;
+
+        getContentPane().setBackground(bg);
+        cambiarColorRecursivo(this.getContentPane(), bg, fg, inputBg, oscuro);
+    }
+
+    private void cambiarColorRecursivo(Container container, Color bg, Color fg, Color inputBg, boolean oscuro) {
+        for (Component c : container.getComponents()) {
+            if (c instanceof JButton b) {
+                b.setOpaque(true);
+                b.setContentAreaFilled(true);
+                b.setBorder(BorderFactory.createLineBorder(oscuro ? new Color(60, 60, 60) : Color.LIGHT_GRAY));
+                if (b.isEnabled()) {
+                    b.setBackground(oscuro ? new Color(60, 60, 60) : new Color(225, 225, 225));
+                    b.setForeground(fg);
+                } else {
+                    b.setBackground(oscuro ? new Color(45, 45, 45) : new Color(240, 240, 240));
+                    b.setForeground(oscuro ? Color.GRAY : Color.LIGHT_GRAY);
+                }
+            } else if (c instanceof JTextField) {
+                c.setBackground(inputBg);
+                c.setForeground(fg);
+                ((JTextField) c).setCaretColor(fg);
+                ((JTextField) c).setBorder(BorderFactory.createLineBorder(oscuro ? Color.GRAY : Color.LIGHT_GRAY));
+            } else if (c instanceof JLabel) {
+                if (c != statusLabel) {
+                    c.setForeground(fg);
+                }
+            } else if (c instanceof JPanel) {
+                c.setBackground(bg);
+            }
+            if (c instanceof Container) {
+                cambiarColorRecursivo((Container) c, bg, fg, inputBg, oscuro);
+            }
+        }
+    }
+
+    private Color getInfoColor() {
+        return utils.ConfigManager.isDarkMode() ? new Color(100, 180, 255) : Color.BLUE;
+    }
+
+    private Color getErrorColor() {
+        return utils.ConfigManager.isDarkMode() ? new Color(255, 100, 100) : Color.RED;
     }
 }

@@ -20,7 +20,7 @@ import java.util.Map;
  * Ventana avanzada de análisis estadístico.
  * Permite visualizar el progreso de lectura mediante gráficas dinámicas,
  * filtrar por fechas/métricas y consultar récords personales.
- *
+ * <p>
  * Tipos de gráfica disponibles:
  * - Páginas Totales: barras por sesión/día
  * - PPM (Velocidad): barras de velocidad lectora
@@ -32,7 +32,7 @@ public class GraphWindow extends JFrame {
 
     private JProgressBar barraProgreso;
     private String libroSeleccionado;
-    private boolean modoOscuro;
+    private final boolean modoOscuro;
     private JPanel container;
     private JPanel filterPanel;
     private JPanel panelHitos;
@@ -45,28 +45,16 @@ public class GraphWindow extends JFrame {
     private JTextField fieldMinPag, fieldFecha;
     private JLabel lblMinPag, lblFecha, labelEstimacion;
     private JCheckBox checkAgrupar, checkCapitulo;
-    private JButton btnActualizar, btnRuta, btnExportarPNG, btnExportarCSV;
+    private JButton btnExportarPNG;
 
     private JLabel lblSesionLarga, lblDiaRecord, lblVelocidadMax;
 
-    private List<String> fechas = new ArrayList<>();
-    private List<Double> valores = new ArrayList<>();
-    private List<Double> valoresSec = new ArrayList<>();
+    private final List<String> fechas = new ArrayList<>();
+    private final List<Double> valores = new ArrayList<>();
+    private final List<Double> valoresSec = new ArrayList<>();
 
     // Indica si el usuario quiere los hitos abiertos o cerrados (por defecto abiertos al abrir ventana)
     private boolean hitosAbiertosUsuario = true;
-
-    // Constructor sin libro — acceso universal
-    public GraphWindow(boolean modoOscuro) {
-        super("📊 Análisis y Gráficas");
-        this.modoOscuro = modoOscuro;
-
-        setSize(1200, 750);
-        setLayout(new BorderLayout());
-        setLocationRelativeTo(null);
-
-        inicializarInterfaz();
-    }
 
     public GraphWindow(boolean modoOscuro, String libroInicial) {
         super("📊 Análisis y Gráficas");
@@ -113,7 +101,7 @@ public class GraphWindow extends JFrame {
         List<String> libros = DatabaseManager.obtenerTodosLosLibros();
         libroSearchField.setBooks(libros);
         if (!libros.isEmpty()) {
-            libroSeleccionado = libros.get(0);
+            libroSeleccionado = libros.getFirst();
             libroSearchField.setSelectedBook(libroSeleccionado);
         }
         libroSearchField.setOnSelectionChanged(libro -> {
@@ -139,10 +127,10 @@ public class GraphWindow extends JFrame {
         checkCapitulo.setBackground(fondo);
         checkCapitulo.setForeground(texto);
 
-        btnActualizar = new JButton("🔄 Filtros");
-        btnRuta = new JButton("📁 Carpeta");
+        JButton btnActualizar = new JButton("🔄 Filtros");
+        JButton btnRuta = new JButton("📁 Carpeta");
         btnExportarPNG = new JButton("💾 PNG");
-        btnExportarCSV = new JButton("📥 CSV");
+        JButton btnExportarCSV = new JButton("📥 CSV");
         btnVerHitos = new JButton("🏆 Récords");
 
         configurarBotonPlano(btnActualizar);
@@ -161,6 +149,11 @@ public class GraphWindow extends JFrame {
         barraProgreso.setPreferredSize(new Dimension(150, 20));
         barraProgreso.setStringPainted(true);
         barraProgreso.setForeground(new Color(46, 204, 113));
+
+        // Establecer el color del texto a negro para mantener el contraste sobre el fondo verde
+        UIManager.put("ProgressBar.selectionForeground", Color.BLACK);
+        UIManager.put("ProgressBar.selectionBackground", Color.BLACK);
+        SwingUtilities.updateComponentTreeUI(barraProgreso);
 
         // 3. Añadir componentes al filterPanel
         filterPanel.add(crearLabel("Métrica:", texto));
@@ -198,6 +191,26 @@ public class GraphWindow extends JFrame {
             boolean esMetricaSinFiltros = "Páginas por día de la semana".equals(sel)
                     || "Actividad por Hora".equals(sel);
 
+            boolean soportaTodos = "Páginas por día de la semana".equals(sel)
+                    || "Actividad por Hora".equals(sel)
+                    || "Correlación: Minutos vs PPM".equals(sel);
+            List<String> lbros = DatabaseManager.obtenerTodosLosLibros();
+            if (soportaTodos) {
+                lbros.addFirst("--- Todos los libros ---");
+            }
+            String prevSeleccionado = libroSeleccionado;
+            libroSearchField.setBooks(lbros);
+            if (!soportaTodos && "--- Todos los libros ---".equals(prevSeleccionado)) {
+                if (!lbros.isEmpty()) {
+                    libroSeleccionado = lbros.getFirst();
+                } else {
+                    libroSeleccionado = null;
+                }
+            }
+            if (libroSeleccionado != null) {
+                libroSearchField.setSelectedBook(libroSeleccionado);
+            }
+
             lblLibro.setVisible(!esComparativo || esAcumulado);
             libroSearchField.setVisible(!esComparativo || esAcumulado);
             lblMinPag.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltros);
@@ -206,6 +219,7 @@ public class GraphWindow extends JFrame {
             fieldFecha.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltros);
             checkAgrupar.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltros);
             checkCapitulo.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltros);
+
             lblProgreso.setVisible(!esComparativo);
             barraProgreso.setVisible(!esComparativo);
 
@@ -279,14 +293,14 @@ public class GraphWindow extends JFrame {
         add(panelHitos, BorderLayout.EAST);
 
         // --- LÓGICA DE EVENTOS ---
-        btnCerrar.addActionListener(e -> {
+        btnCerrar.addActionListener(ignored -> {
             hitosAbiertosUsuario = false;
             panelHitos.setVisible(false);
             btnVerHitos.setVisible(true);
             revalidate();
         });
 
-        btnVerHitos.addActionListener(e -> {
+        btnVerHitos.addActionListener(ignored -> {
             hitosAbiertosUsuario = true;
             panelHitos.setVisible(true);
             btnVerHitos.setVisible(false);
@@ -294,9 +308,9 @@ public class GraphWindow extends JFrame {
         });
 
         btnActualizar.addActionListener(
-                e -> refrescarGrafica(btnExportarPNG, checkAgrupar.isSelected(), checkCapitulo.isSelected()));
+                ignored -> refrescarGrafica(btnExportarPNG, checkAgrupar.isSelected(), checkCapitulo.isSelected()));
 
-        btnRuta.addActionListener(e -> {
+        btnRuta.addActionListener(ignored -> {
             JFileChooser chooser = new JFileChooser(ExportService.rutaExportacion);
             chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
             if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -305,7 +319,7 @@ public class GraphWindow extends JFrame {
             }
         });
 
-        btnExportarCSV.addActionListener(e -> {
+        btnExportarCSV.addActionListener(ignored -> {
             String metricaSel = (String) comboMetrica.getSelectedItem();
             String nombreArchivo = "PPM Comparativa".equals(metricaSel)
                     ? "PPM_Comparativa_Libros_Terminados"
@@ -415,9 +429,9 @@ public class GraphWindow extends JFrame {
         boolean esAcumulado = "Progreso Acumulado".equals(metricaSel);
         boolean esMetaAnual = "Meta Anual".equals(metricaSel);
         boolean esEvolucionMensual = "Evolución Mensual".equals(metricaSel);
-        boolean esNuevaMetricaLibro = metricaSel.equals("Correlación: Minutos vs PPM") ||
-                                      metricaSel.equals("Páginas por día de la semana") ||
-                                      metricaSel.equals("Actividad por Hora");
+        boolean esNuevaMetricaLibro = "Correlación: Minutos vs PPM".equals(metricaSel) ||
+                "Páginas por día de la semana".equals(metricaSel) ||
+                "Actividad por Hora".equals(metricaSel);
 
         // Actualizar libroSeleccionado desde el campo solo para gráficos individuales
         if (!esComparativa && !esHeatmap && !esMetaAnual && !esEvolucionMensual) {
@@ -443,10 +457,10 @@ public class GraphWindow extends JFrame {
             try {
                 int minPag = fieldMinPag.getText().isEmpty() ? 0 : Integer.parseInt(fieldMinPag.getText());
                 // Progreso acumulado usa columna paginas siempre
-                String colSql = metricaSel.startsWith("Páginas") ? "paginas" : esAcumulado ? "pag_fin" : "ppm";
+                String colSql = (metricaSel != null && metricaSel.startsWith("Páginas")) ? "paginas" : esAcumulado ? "pag_fin" : "ppm";
 
                 int minPagEfectivo = esAcumulado ? 0 : minPag;
-                boolean agruparEfectivo = esAcumulado ? false : agruparPorDia; // ← false para acumulado
+                boolean agruparEfectivo = !esAcumulado && agruparPorDia; // ← false para acumulado
                 List<DataPoint> puntos = DatabaseManager.obtenerDatosGrafica(colSql,
                         DatabaseManager.obtenerLibroId(libroSeleccionado),
                         minPagEfectivo, agruparEfectivo, false, esDual);
@@ -573,54 +587,67 @@ public class GraphWindow extends JFrame {
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                System.err.println("Error en refrescarGrafica: " + e.getMessage());
             }
         }
 
         // --- NUEVAS MÉTRICAS BASADAS EN SESIONES ---
-        if (esNuevaMetricaLibro && libroSeleccionado != null) {
+        if (esNuevaMetricaLibro) {
             try {
-                int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
-                List<model.Sesion> sesiones = DatabaseManager.obtenerSesionesPorLibro(libroId);
+                List<model.Sesion> sesiones;
+                if ("--- Todos los libros ---".equals(libroSeleccionado)) {
+                    sesiones = DatabaseManager.obtenerTodasLasSesionesDesde("1970-01-01");
+                } else {
+                    int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
+                    sesiones = DatabaseManager.obtenerSesionesPorLibro(libroId);
+                }
 
-                if (metricaSel.equals("Correlación: Minutos vs PPM")) {
-                    for (model.Sesion s : sesiones) {
-                        if (s.getMinutos() > 0 && s.getPpm() > 0) {
-                            fechas.add(String.valueOf(s.getMinutos())); // X: Minutos
-                            valores.add(s.getPpm());                   // Y: PPM
+                switch (metricaSel) {
+                    case "Correlación: Minutos vs PPM":
+                        for (model.Sesion s : sesiones) {
+                            if (s.getMinutos() > 0 && s.getPpm() > 0) {
+                                fechas.add(String.valueOf(s.getMinutos())); // X: Minutos
+                                valores.add(s.getPpm());                   // Y: PPM
+                            }
                         }
-                    }
-                }
-                else if (metricaSel.equals("Páginas por día de la semana")) {
-                    double[] pagsPorDia = new double[7];
-                    String[] nombresDias = {"Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"};
-                    for (model.Sesion s : sesiones) {
-                        Integer dia = utils.ReadingCalculator.extraerDiaSemana(s.getFecha());
-                        if (dia != null) pagsPorDia[dia - 1] += s.getPaginasLeidas();
-                    }
-                    for (int i=0; i<7; i++) {
-                        fechas.add(nombresDias[i]);
-                        valores.add(pagsPorDia[i]);
-                    }
-                }
-                else if (metricaSel.equals("Actividad por Hora")) {
-                    double[] pagsPorHora = new double[24];
-                    boolean hayHoras = false;
-                    for (model.Sesion s : sesiones) {
-                        Integer hora = utils.ReadingCalculator.extraerHoraSegura(s.getFecha());
-                        if (hora != null) {
-                            pagsPorHora[hora] += s.getPaginasLeidas();
-                            hayHoras = true;
+                        break;
+                    case "Páginas por día de la semana":
+                        double[] pagsPorDia = new double[7];
+                        String[] nombresDias = {"Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"};
+                        boolean hayLecturaSemana = false;
+                        for (model.Sesion s : sesiones) {
+                            Integer dia = utils.ReadingCalculator.extraerDiaSemana(s.getFecha());
+                            if (dia != null) pagsPorDia[dia - 1] += s.getPaginasLeidas();
                         }
-                    }
-                    if (hayHoras) {
-                        for (int i = 0; i < 24; i++) {
-                            fechas.add(i + ":00");
-                            valores.add(pagsPorHora[i]);
+                        for (int i=0; i<7; i++) {
+                            if (pagsPorDia[i] > 0) hayLecturaSemana = true;
+                            fechas.add(nombresDias[i]);
+                            valores.add(pagsPorDia[i]);
                         }
-                    }
+                        if (!hayLecturaSemana) {
+                            fechas.clear();
+                            valores.clear();
+                        }
+                        break;
+                    case "Actividad por Hora":
+                        double[] pagsPorHora = new double[24];
+                        boolean hayHoras = false;
+                        for (model.Sesion s : sesiones) {
+                            Integer hora = utils.ReadingCalculator.extraerHoraSegura(s.getFecha());
+                            if (hora != null) {
+                                pagsPorHora[hora] += s.getPaginasLeidas();
+                                hayHoras = true;
+                            }
+                        }
+                        if (hayHoras) {
+                            for (int i = 0; i < 24; i++) {
+                                fechas.add(i + ":00");
+                                valores.add(pagsPorHora[i]);
+                            }
+                        }
+                        break;
                 }
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception e) { System.err.println("Error en refrescarGrafica: " + e.getMessage()); }
         }
 
         // --- NUEVA MÉTRICA GLOBAL: EVOLUCIÓN MENSUAL ---
@@ -636,7 +663,9 @@ public class GraphWindow extends JFrame {
                     fechas.add(entry.getKey());
                     valores.add(entry.getValue());
                 }
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception e) {
+                System.err.println("Error en evolución mensual: " + e.getMessage());
+            }
         }
 
         // Heatmap necesita sus propios datos (usa todas las sesiones globales)
@@ -650,25 +679,36 @@ public class GraphWindow extends JFrame {
                     valores.add(p.getValor());
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                System.err.println("Error en heatmap: " + e.getMessage());
             }
         }
 
         // Barra de progreso e hitos: solo para gráficos individuales
         if (!esComparativa && !esHeatmap && !esMetaAnual && !esEvolucionMensual && libroSeleccionado != null) {
-            int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
-            double porcentaje = DatabaseManager.obtenerPorcentajeProgreso(libroId);
-            barraProgreso.setValue((int) porcentaje);
-            barraProgreso.setToolTipText("Has leído el " + String.format("%.1f", porcentaje) + "% del libro");
-            labelEstimacion.setText("");
-            labelEstimacion.setVisible(false);
-            cargarHitosPersonales();
+            if ("--- Todos los libros ---".equals(libroSeleccionado)) {
+                barraProgreso.setVisible(false);
+                if (lblProgreso != null) lblProgreso.setVisible(false);
+                labelEstimacion.setText("");
+                labelEstimacion.setVisible(false);
+                panelHitos.setVisible(false);
+                btnVerHitos.setVisible(false);
+            } else {
+                barraProgreso.setVisible(true);
+                if (lblProgreso != null) lblProgreso.setVisible(true);
+                int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
+                double porcentaje = DatabaseManager.obtenerPorcentajeProgreso(libroId);
+                barraProgreso.setValue((int) porcentaje);
+                barraProgreso.setToolTipText("Has leído el " + String.format("%.1f", porcentaje) + "% del libro");
+                labelEstimacion.setText("");
+                labelEstimacion.setVisible(false);
+                cargarHitosPersonales();
+            }
         }
 
         if (!esComparativa && !esHeatmap && !esMetaAnual && !esEvolucionMensual && fechas.isEmpty()) {
             container.removeAll();
             String msg = "Este libro aún no tiene sesiones almacenadas.";
-            if (metricaSel.equals("Actividad por Hora") && libroSeleccionado != null) {
+            if ("Actividad por Hora".equals(metricaSel) && libroSeleccionado != null) {
                 msg = "Este libro no tiene registros de hora (solo fecha).";
             }
             JLabel lbl = new JLabel(msg, SwingConstants.CENTER);
@@ -682,6 +722,7 @@ public class GraphWindow extends JFrame {
 
         // Construir el panel correcto según tipo
         JPanel panel;
+
         if (esHeatmap) {
             PanelHeatmap hp = new PanelHeatmap(fechas, valores, modoOscuro);
             hp.setPreferredSize(new Dimension(850, 500));
@@ -709,9 +750,9 @@ public class GraphWindow extends JFrame {
             panel = pbc;
         } else if (esAcumulado) {
             // NUEVO: Añadir el punto 0 al inicio para que la gráfica nazca desde el suelo
-            if (!valores.isEmpty() && valores.get(0) > 0) {
-                valores.add(0, 0.0);
-                fechas.add(0, "Inicio");
+            if (!valores.isEmpty() && valores.getFirst() > 0) {
+                valores.addFirst(0.0);
+                fechas.addFirst("Inicio");
             }
 
             int totalPags = libroSeleccionado != null
@@ -732,7 +773,7 @@ public class GraphWindow extends JFrame {
         final JPanel panelFinal = panel;
         for (var al : btnExportar.getActionListeners())
             btnExportar.removeActionListener(al);
-        btnExportar.addActionListener(e -> ExportService.exportarAPNG(
+        btnExportar.addActionListener(ignored -> ExportService.exportarAPNG(
                 panelFinal, libroSeleccionado != null ? libroSeleccionado : "comparativa"));
 
         container.removeAll();
@@ -752,10 +793,10 @@ public class GraphWindow extends JFrame {
      * Gráfico de barras verticales para páginas o PPM por sesión/día.
      */
     public static class PanelGrafica extends JPanel {
-        private List<String> fechas;
-        private List<Double> valores;
-        private String tituloEje;
-        private boolean modoOscuro;
+        private final List<String> fechas;
+        private final List<Double> valores;
+        private final String tituloEje;
+        private final boolean modoOscuro;
 
         public PanelGrafica(List<String> f, List<Double> v, String t, boolean modoOscuro) {
             this.fechas = f;
@@ -780,12 +821,12 @@ public class GraphWindow extends JFrame {
             Color colorTexto = modoOscuro ? new Color(220, 220, 220) : new Color(60, 60, 60);
             Color colorEjes = modoOscuro ? new Color(80, 80, 80) : Color.LIGHT_GRAY;
 
-            int h = getHeight(), mY = 80, mInf = 150, mSup = 60;
+            int h = getHeight(), mIzq = 80, mInf = 150, mSup = 60;
             double maxV = valores.stream().max(Double::compare).orElse(10.0);
             double escalaY = (h - mInf - mSup) / (maxV * 1.15);
 
             for (int i = 0; i < valores.size(); i++) {
-                int x = mY + (i * 90) + 25;
+                int x = mIzq + (i * 90) + 25;
                 int barH = (int) (valores.get(i) * escalaY);
                 int y = h - mInf - barH;
 
@@ -810,8 +851,8 @@ public class GraphWindow extends JFrame {
 
             g2.setColor(colorEjes);
             g2.setStroke(new BasicStroke(1.2f));
-            g2.drawLine(mY, mSup, mY, h - mInf);
-            g2.drawLine(mY, h - mInf, getWidth() - 50, h - mInf);
+            g2.drawLine(mIzq, mSup, mIzq, h - mInf);
+            g2.drawLine(mIzq, h - mInf, getWidth() - 50, h - mInf);
 
             g2.setColor(colorTexto);
             g2.setFont(new Font("SansSerif", Font.ITALIC, 11));
@@ -823,11 +864,12 @@ public class GraphWindow extends JFrame {
      * Gráfico combinado de barras (páginas leídas) + línea (minutos), con doble eje
      * Y.
      */
+    @SuppressWarnings("unused")
     public static class PanelGraficaDual extends JPanel {
-        private List<String> fechas;
-        private List<Double> paginas;
-        private List<Double> minutos;
-        private boolean modoOscuro;
+        private final List<String> fechas;
+        private final List<Double> paginas;
+        private final List<Double> minutos;
+        private final boolean modoOscuro;
 
         public PanelGraficaDual(List<String> f, List<Double> pags, List<Double> mins, boolean modoOscuro) {
             this.fechas = f;
@@ -868,7 +910,7 @@ public class GraphWindow extends JFrame {
             g2.setStroke(new BasicStroke(0.8f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[] { 4 }, 0));
             int nGrid = 5;
             for (int gi = 1; gi <= nGrid; gi++) {
-                int yGrid = h - mInf - (int) (areaH * gi / nGrid);
+                int yGrid = h - mInf - (areaH * gi / nGrid);
                 g2.drawLine(mIzq, yGrid, getWidth() - mDer, yGrid);
             }
 
@@ -936,14 +978,14 @@ public class GraphWindow extends JFrame {
 
             g2.setFont(new Font("SansSerif", Font.PLAIN, 9));
             for (int gi = 0; gi <= nGrid; gi++) {
-                int yMarca = h - mInf - (int) (areaH * gi / nGrid);
+                int yMarca = h - mInf - (areaH * gi / nGrid);
                 int valMarca = (int) Math.round(maxPag * gi / nGrid);
                 g2.setColor(colorTexto);
                 String marcaTxt = String.valueOf(valMarca);
                 g2.drawString(marcaTxt, mIzq - g2.getFontMetrics().stringWidth(marcaTxt) - 5, yMarca + 4);
             }
             for (int gi = 0; gi <= nGrid; gi++) {
-                int yMarca = h - mInf - (int) (areaH * gi / nGrid);
+                int yMarca = h - mInf - (areaH * gi / nGrid);
                 int valMarca = (int) Math.round(maxMin * gi / nGrid);
                 g2.setColor(colorLinea);
                 String marcaTxt = valMarca + "m";
@@ -977,9 +1019,8 @@ public class GraphWindow extends JFrame {
      * Heatmap de consistencia estilo GitHub.
      */
     public static class PanelHeatmap extends JPanel {
-        private Map<LocalDate, Double> datos = new java.util.HashMap<>();
-        private boolean modoOscuro;
-        private Double maxPags = 1.0;
+        private final Map<LocalDate, Double> datos = new java.util.HashMap<>();
+        private final boolean modoOscuro;
 
         public PanelHeatmap(List<String> fechasStr, List<Double> valores, boolean modoOscuro) {
             this.modoOscuro = modoOscuro;
@@ -989,10 +1030,9 @@ public class GraphWindow extends JFrame {
                     LocalDate ld = parsearFecha(f);
                     if (ld != null) {
                         datos.put(ld, valores.get(i));
-                        if (valores.get(i) > maxPags)
-                            maxPags = valores.get(i);
                     }
                 } catch (Exception e) {
+                    System.err.println("Error parsing date: " + e.getMessage());
                 }
             }
             setBackground(modoOscuro ? new Color(30, 30, 30) : Color.WHITE);
@@ -1144,7 +1184,7 @@ public class GraphWindow extends JFrame {
             int nGrid = 5;
             g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
             for (int i = 0; i <= nGrid; i++) {
-                int xGrid = mIzq + (int) (areaW * i / nGrid);
+                int xGrid = mIzq + (areaW * i / nGrid);
                 g2.setColor(colorGrid);
                 float[] dash = { 4f };
                 g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, dash, 0));
@@ -1245,7 +1285,7 @@ public class GraphWindow extends JFrame {
             int nGrid = 5;
             g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
             for (int i = 0; i <= nGrid; i++) {
-                int yGrid = h - mInf - (int) (areaH * i / nGrid);
+                int yGrid = h - mInf - (areaH * i / nGrid);
                 g2.setColor(colorEjes);
                 float[] dash = { 4f };
                 g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, dash, 0));
@@ -1372,12 +1412,12 @@ public class GraphWindow extends JFrame {
             int nGrid = 5;
             g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
             for (int i = 0; i <= nGrid; i++) {
-                int yGrid = h - mInf - (int) (areaH * i / nGrid);
+                int yGrid = h - mInf - (areaH * i / nGrid);
                 g2.setColor(colorEjes);
                 float[] dash = { 4f };
                 g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, dash, 0));
                 g2.drawLine(mIzq, yGrid, w - mDer, yGrid);
-                
+
                 // Etiquetas eje Y
                 String etiq = String.valueOf((int) (maxVal * i / nGrid));
                 g2.setColor(colorTexto);
@@ -1422,14 +1462,14 @@ public class GraphWindow extends JFrame {
                 g2.translate(px[i], h - mInf + 15);
                 g2.rotate(Math.toRadians(45));
                 g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
-                
+
                 String labelStr = fechas.get(i);
                 if (labelStr != null && labelStr.matches("\\d{4}-\\d{2}")) {
                     String[] meses = {"Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"};
                     int m = Integer.parseInt(labelStr.substring(5, 7));
                     labelStr = meses[m - 1] + " " + labelStr.substring(0, 4);
                 }
-                
+
                 g2.drawString(labelStr, 0, 0);
                 g2.setTransform(old);
             }
@@ -1486,12 +1526,12 @@ public class GraphWindow extends JFrame {
             g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
             Color colorTexto = modoOscuro ? Color.WHITE : Color.BLACK;
             for (int i = 0; i <= nGridY; i++) {
-                int yGrid = h - mInf - (int) (areaH * i / nGridY);
+                int yGrid = h - mInf - (areaH * i / nGridY);
                 // Grid horizontal
                 g2.setColor(modoOscuro ? new Color(60, 60, 60) : new Color(220, 220, 220));
                 g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{4f}, 0));
                 g2.drawLine(mIzq, yGrid, w - mDer, yGrid);
-                
+
                 // Etiqueta Y
                 String etiq = String.format("%.1f", maxPpm * i / nGridY);
                 g2.setColor(colorTexto);
@@ -1501,12 +1541,12 @@ public class GraphWindow extends JFrame {
             // Dibujar Grid y Etiquetas Eje X (Minutos)
             int nGridX = 5;
             for (int i = 0; i <= nGridX; i++) {
-                int xGrid = mIzq + (int) (areaW * i / nGridX);
+                int xGrid = mIzq + (areaW * i / nGridX);
                 // Grid vertical
                 g2.setColor(modoOscuro ? new Color(60, 60, 60) : new Color(220, 220, 220));
                 g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{4f}, 0));
                 g2.drawLine(xGrid, mSup, xGrid, h - mInf);
-                
+
                 // Etiqueta X
                 String etiq = String.valueOf((int) (maxMinutos * i / nGridX));
                 g2.setColor(colorTexto);
@@ -1524,12 +1564,12 @@ public class GraphWindow extends JFrame {
             for (int i = 0; i < ppm.size(); i++) {
                 double min = Double.parseDouble(minutosStr.get(i));
                 double p = ppm.get(i);
-                
+
                 int x = mIzq + (int)((min / maxMinutos) * areaW);
                 int y = h - mInf - (int)((p / maxPpm) * areaH);
                 puntos.add(new Point(x, y));
             }
-            
+
             // Ordenar por coordenada X para la línea de tendencia
             puntos.sort(Comparator.comparingInt(p -> p.x));
 
@@ -1557,7 +1597,7 @@ public class GraphWindow extends JFrame {
             g2.setColor(colorTexto);
             g2.setFont(new Font("SansSerif", Font.BOLD, 12));
             g2.drawString("Duración de la Sesión (Minutos)", w / 2 - 80, h - 20);
-            
+
             AffineTransform old = g2.getTransform();
             g2.translate(30, h / 2 + 40);
             g2.rotate(-Math.PI / 2);

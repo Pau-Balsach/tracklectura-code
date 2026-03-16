@@ -54,8 +54,8 @@ public class SQLiteSyncService implements DatabaseService {
 
         java.io.File dbFile = new java.io.File(DB_FILE);
         java.io.File parent = dbFile.getParentFile();
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            System.err.println("No se pudo crear el directorio padre para la base de datos.");
         }
 
         String url = "jdbc:sqlite:" + DB_FILE;
@@ -70,7 +70,8 @@ public class SQLiteSyncService implements DatabaseService {
         try (Statement stmt = conn.createStatement()) {
             // WAL (Write-Ahead Logging): Permite lectura/escritura concurrente
             stmt.execute("PRAGMA journal_mode = WAL;");
-            // NORMAL: Ideal para WAL, mejora enormemente la velocidad de escritura sin riesgo en fsync()
+            // NORMAL: Ideal para WAL, mejora enormemente la velocidad de escritura sin
+            // riesgo en fsync()
             stmt.execute("PRAGMA synchronous = NORMAL;");
             // 64MB de Caché
             stmt.execute("PRAGMA cache_size = -64000;");
@@ -209,10 +210,22 @@ public class SQLiteSyncService implements DatabaseService {
         }
 
         try (Statement stmt = conn.createStatement()) {
-            try { stmt.execute("ALTER TABLE sesiones ADD COLUMN uuid TEXT"); } catch (Exception ignored) { }
-            try { stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sesiones_uuid ON sesiones(uuid)"); } catch (Exception ignored) { }
-            try { stmt.execute("ALTER TABLE sesiones ADD COLUMN sincronizado INTEGER DEFAULT 0"); } catch (Exception ignored) { }
-            try { stmt.execute("ALTER TABLE libros ADD COLUMN sincronizado INTEGER DEFAULT 0"); } catch (Exception ignored) { }
+            try {
+                stmt.execute("ALTER TABLE sesiones ADD COLUMN uuid TEXT");
+            } catch (Exception ignored) {
+            }
+            try {
+                stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sesiones_uuid ON sesiones(uuid)");
+            } catch (Exception ignored) {
+            }
+            try {
+                stmt.execute("ALTER TABLE sesiones ADD COLUMN sincronizado INTEGER DEFAULT 0");
+            } catch (Exception ignored) {
+            }
+            try {
+                stmt.execute("ALTER TABLE libros ADD COLUMN sincronizado INTEGER DEFAULT 0");
+            } catch (Exception ignored) {
+            }
         }
 
         sincronizarConNube();
@@ -256,7 +269,7 @@ public class SQLiteSyncService implements DatabaseService {
             }
             System.out.println("✅ Base de datos local preparada para el usuario: " + currentUserId);
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error BD: " + e.getMessage());
         }
     }
 
@@ -275,7 +288,7 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setInt(3, paginas);
             ps.executeUpdate();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en guardarLibro: " + e.getMessage());
         }
         syncPending.set(true);
         syncExecutor.execute(this::sincronizarPendientes);
@@ -291,7 +304,7 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setString(3, getLocalUserId());
             ps.executeUpdate();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en actualizarPaginasTotales: " + e.getMessage());
         }
         syncExecutor.execute(this::sincronizarPendientes);
     }
@@ -305,7 +318,7 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setString(3, getLocalUserId());
             ps.executeUpdate();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en guardarCoverUrl: " + e.getMessage());
         }
         syncExecutor.execute(this::sincronizarPendientes);
     }
@@ -322,7 +335,7 @@ public class SQLiteSyncService implements DatabaseService {
                     return url;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerCoverUrl: " + e.getMessage());
         }
         if (!utils.ConfigManager.isOfflineMode())
             return remote.obtenerCoverUrl(libroId);
@@ -331,7 +344,7 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public void guardarSesion(int lId, String cap, int ini, int fin, int pags, double m, double ppm, double pph,
-                              String fecha) {
+            String fecha) {
         String uuid = java.util.UUID.randomUUID().toString();
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO sesiones(user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, uuid, sincronizado, dirty) VALUES(?,?,?,?,?,?,?,?,?,?,?,0,1)")) {
@@ -348,7 +361,7 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setString(11, uuid);
             ps.executeUpdate();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en guardarSesion: " + e.getMessage());
         }
         syncPending.set(true);
         syncExecutor.execute(this::sincronizarPendientes);
@@ -363,7 +376,7 @@ public class SQLiteSyncService implements DatabaseService {
             if (rs.next())
                 return rs.getInt("id");
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerLibroId: " + e.getMessage());
         }
         return remote.obtenerLibroId(nombre);
     }
@@ -377,7 +390,7 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setString(3, getLocalUserId());
             ps.executeUpdate();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en actualizarEstadoLibro: " + e.getMessage());
         }
         syncExecutor.execute(this::sincronizarPendientes);
     }
@@ -394,7 +407,7 @@ public class SQLiteSyncService implements DatabaseService {
                     return st;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerEstadoLibro: " + e.getMessage());
         }
         if (!utils.ConfigManager.isOfflineMode())
             return remote.obtenerEstadoLibro(libroId);
@@ -411,7 +424,7 @@ public class SQLiteSyncService implements DatabaseService {
                     res.add(rs.getString("nombre"));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerTodosLosLibros: " + e.getMessage());
         }
         if (res.isEmpty() && !isOffline)
             return remote.obtenerTodosLosLibros();
@@ -431,7 +444,7 @@ public class SQLiteSyncService implements DatabaseService {
                     return max;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerUltimaPaginaLeida: " + e.getMessage());
         }
         if (!utils.ConfigManager.isOfflineMode())
             return remote.obtenerUltimaPaginaLeida(lId);
@@ -440,10 +453,10 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public boolean actualizarSesionCompleta(int id, int ini, int fin, int pags, double mins, double ppm, double pph,
-                                            String cap) {
+            String cap, String fecha) {
         String uid = getLocalUserId();
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE sesiones SET pag_inicio=?, pag_fin=?, paginas_leidas=?, minutos=?, ppm=?, pph=?, capitulo=?, sincronizado=0, dirty=1 WHERE id=? AND user_id=?")) {
+                "UPDATE sesiones SET pag_inicio=?, pag_fin=?, paginas_leidas=?, minutos=?, ppm=?, pph=?, capitulo=?, fecha=?, sincronizado=0, dirty=1 WHERE id=? AND user_id=?")) {
             ps.setInt(1, ini);
             ps.setInt(2, fin);
             ps.setInt(3, pags);
@@ -451,15 +464,16 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setDouble(5, ppm);
             ps.setDouble(6, pph);
             ps.setString(7, cap);
-            ps.setInt(8, id);
-            ps.setString(9, uid);
+            ps.setString(8, fecha);
+            ps.setInt(9, id);
+            ps.setString(10, uid);
             int rows = ps.executeUpdate();
             if (rows > 0) {
                 syncExecutor.execute(this::sincronizarPendientes);
                 return true;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en actualizarSesionCompleta: " + e.getMessage());
         }
         return false;
     }
@@ -477,7 +491,7 @@ public class SQLiteSyncService implements DatabaseService {
                     return tot;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerPaginasTotales: " + e.getMessage());
         }
         if (!utils.ConfigManager.isOfflineMode())
             return remote.obtenerPaginasTotales(libroId);
@@ -500,14 +514,15 @@ public class SQLiteSyncService implements DatabaseService {
                 list.add(s);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerSesionesPorLibro: " + e.getMessage());
         }
-        
-        // Eliminado el fallback a 'remote.obtenerSesionesPorLibro(lId)' si list.isEmpty()
+
+        // Eliminado el fallback a 'remote.obtenerSesionesPorLibro(lId)' si
+        // list.isEmpty()
         // porque rompe el borrado de la última sesión (la recupera de la nube antes de
         // que la orden de borrado de fondo llegue al servidor).
         // La app ya sincroniza la base de datos local al inicio y en background.
-        
+
         return list;
     }
 
@@ -525,7 +540,7 @@ public class SQLiteSyncService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerTodasLasSesiones: " + e.getMessage());
         }
         return list;
     }
@@ -536,9 +551,10 @@ public class SQLiteSyncService implements DatabaseService {
         try (PreparedStatement ps = conn.prepareStatement("SELECT uuid FROM sesiones WHERE id=?")) {
             ps.setInt(1, sId);
             ResultSet rs = ps.executeQuery();
-            if (rs.next()) uuid = rs.getString("uuid");
+            if (rs.next())
+                uuid = rs.getString("uuid");
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en eliminarSesion: " + e.getMessage());
         }
 
         try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sesiones WHERE id=? AND user_id=?")) {
@@ -546,22 +562,22 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setString(2, getLocalUserId());
             boolean ok = ps.executeUpdate() > 0;
             if (ok && uuid != null && !utils.ConfigManager.isOfflineMode()) {
-                final String finalUuid = uuid;
-                // MEJORA: Registrar en deleted_sesiones de inmediato (previene race-condition al reinstanciar en descargas rápidas)
+                // MEJORA: Registrar en deleted_sesiones de inmediato (previene race-condition
+                // al reinstanciar en descargas rápidas)
                 try (PreparedStatement psDel = conn.prepareStatement(
                         "INSERT OR IGNORE INTO deleted_sesiones(uuid, user_id) VALUES(?,?)")) {
-                    psDel.setString(1, finalUuid);
+                    psDel.setString(1, uuid);
                     psDel.setString(2, getLocalUserId());
                     psDel.executeUpdate();
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    System.err.println("[SQLiteSync] Error (ex): " + ex.getMessage());
                 }
                 syncPending.set(true);
                 syncExecutor.execute(this::sincronizarPendientes);
             }
             return ok;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en eliminarSesion: " + e.getMessage());
             return false;
         }
     }
@@ -579,21 +595,21 @@ public class SQLiteSyncService implements DatabaseService {
                     psDel.setString(2, getLocalUserId());
                     psDel.executeUpdate();
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    System.err.println("[SQLiteSync] Error (ex): " + ex.getMessage());
                 }
                 syncPending.set(true);
                 syncExecutor.execute(this::sincronizarPendientes);
             }
             return ok;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en eliminarSesionPorUuid: " + e.getMessage());
             return false;
         }
     }
 
     @Override
     public boolean insertarSesionManual(int lId, String fecha, String cap, int ini, int fin, int pags, double mins,
-                                        double ppm, double pph) {
+            double ppm, double pph) {
         String uuid = java.util.UUID.randomUUID().toString();
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO sesiones(user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, uuid, sincronizado, dirty) VALUES(?,?,?,?,?,?,?,?,?,?,?,0,1)")) {
@@ -609,10 +625,11 @@ public class SQLiteSyncService implements DatabaseService {
             ps.setString(10, fecha);
             ps.setString(11, uuid);
             boolean ok = ps.executeUpdate() > 0;
-            if (ok) syncExecutor.execute(this::sincronizarPendientes);
+            if (ok)
+                syncExecutor.execute(this::sincronizarPendientes);
             return ok;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en insertarSesionManual: " + e.getMessage());
             return false;
         }
     }
@@ -620,11 +637,6 @@ public class SQLiteSyncService implements DatabaseService {
     @Override
     public double obtenerPromedioPPH(int libroId) {
         return obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPph).average().orElse(0.0);
-    }
-
-    @Override
-    public double obtenerPromedioPPM(int libroId) {
-        return obtenerSesionesPorLibro(libroId).stream().mapToDouble(Sesion::getPpm).average().orElse(0.0);
     }
 
     @Override
@@ -638,29 +650,43 @@ public class SQLiteSyncService implements DatabaseService {
     }
 
     private String normalizeDate(String fechaStr) {
-        if (fechaStr == null || fechaStr.isEmpty()) return "N/A";
+        if (fechaStr == null || fechaStr.isEmpty())
+            return "N/A";
         String f = fechaStr;
-        if (f.contains(" ")) f = f.split(" ")[0];
-        else if (f.contains("T")) f = f.split("T")[0];
+        if (f.contains(" "))
+            f = f.split(" ")[0];
+        else if (f.contains("T"))
+            f = f.split("T")[0];
 
         DateTimeFormatter fmtApp = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         DateTimeFormatter fmtIso = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        try { return LocalDate.parse(f, fmtApp).format(fmtApp); } catch (Exception e1) { }
-        try { return LocalDate.parse(f, fmtIso).format(fmtApp); } catch (Exception e2) { }
-        try { return LocalDate.parse(f, DateTimeFormatter.ofPattern("M/d/yyyy")).format(fmtApp); } catch (Exception e3) { }
+        try {
+            return LocalDate.parse(f, fmtApp).format(fmtApp);
+        } catch (Exception ignored) {
+        }
+        try {
+            return LocalDate.parse(f, fmtIso).format(fmtApp);
+        } catch (Exception ignored) {
+        }
+        try {
+            return LocalDate.parse(f, DateTimeFormatter.ofPattern("M/d/yyyy")).format(fmtApp);
+        } catch (Exception ignored) {
+        }
         return f;
     }
 
     @Override
     public String obtenerDiaMasLectura(int libroId) {
-        if (utils.ConfigManager.isOfflineMode()) return "N/D (Modo Offline)";
+        if (utils.ConfigManager.isOfflineMode())
+            return "N/D (Modo Offline)";
         return remote.obtenerDiaMasLectura(libroId);
     }
 
     @Override
     public double obtenerPorcentajeProgreso(int libroId) {
         int tot = obtenerPaginasTotales(libroId);
-        if (tot == 0) return 0;
+        if (tot == 0)
+            return 0;
         return (obtenerUltimaPaginaLeida(libroId) / (double) tot) * 100;
     }
 
@@ -670,15 +696,21 @@ public class SQLiteSyncService implements DatabaseService {
             int racha = 0;
             List<LocalDate> fechas = new ArrayList<>();
             DateTimeFormatter fmtApp = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            
-            // OPTIMIZACIÓN: Solo traemos la columna de fecha sin instanciar miles de modelos de Sesion
-            try (PreparedStatement ps = conn.prepareStatement("SELECT fecha FROM sesiones WHERE user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
+
+            // OPTIMIZACIÓN: Solo traemos la columna de fecha sin instanciar miles de
+            // modelos de Sesion
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT fecha FROM sesiones WHERE user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
                 ps.setString(1, getLocalUserId());
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         String f = normalizeDate(rs.getString("fecha"));
-                        if (f.equals("N/A")) continue;
-                        try { fechas.add(LocalDate.parse(f, fmtApp)); } catch (Exception ignored) { }
+                        if (f.equals("N/A"))
+                            continue;
+                        try {
+                            fechas.add(LocalDate.parse(f, fmtApp));
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
             }
@@ -686,19 +718,24 @@ public class SQLiteSyncService implements DatabaseService {
             if (!fechas.isEmpty()) {
                 LocalDate hoy = LocalDate.now();
                 List<LocalDate> unicas = fechas.stream().distinct().filter(d -> !d.isAfter(hoy))
-                        .sorted((a, b) -> b.compareTo(a)).collect(Collectors.toList());
-                if (!unicas.isEmpty() && (unicas.get(0).equals(hoy) || unicas.get(0).equals(hoy.minusDays(1)))) {
+                        .sorted(Comparator.reverseOrder()).toList();
+                if (!unicas.isEmpty()
+                        && (unicas.getFirst().equals(hoy) || unicas.getFirst().equals(hoy.minusDays(1)))) {
                     racha = 1;
                     for (int i = 0; i < unicas.size() - 1; i++) {
-                        if (unicas.get(i).minusDays(1).equals(unicas.get(i + 1))) racha++;
-                        else break;
+                        if (unicas.get(i).minusDays(1).equals(unicas.get(i + 1)))
+                            racha++;
+                        else
+                            break;
                     }
                 }
             }
-            if (racha == 0 && !utils.ConfigManager.isOfflineMode()) return remote.obtenerRachaActual();
+            if (racha == 0 && !utils.ConfigManager.isOfflineMode())
+                return remote.obtenerRachaActual();
             return racha;
         } catch (Exception e) {
-            if (!utils.ConfigManager.isOfflineMode()) return remote.obtenerRachaActual();
+            if (!utils.ConfigManager.isOfflineMode())
+                return remote.obtenerRachaActual();
             return 0;
         }
     }
@@ -708,8 +745,10 @@ public class SQLiteSyncService implements DatabaseService {
         String hoyNormalizado = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         int total = 0;
         try {
-            // OPTIMIZACIÓN: Solo leer 'fecha' y 'paginas_leidas', evitando Memory Leaks instanciando todas las sesiones.
-            try (PreparedStatement ps = conn.prepareStatement("SELECT fecha, paginas_leidas FROM sesiones WHERE user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
+            // OPTIMIZACIÓN: Solo leer 'fecha' y 'paginas_leidas', evitando Memory Leaks
+            // instanciando todas las sesiones.
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT fecha, paginas_leidas FROM sesiones WHERE user_id=? AND fecha IS NOT NULL AND fecha != ''")) {
                 ps.setString(1, getLocalUserId());
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
@@ -720,15 +759,16 @@ public class SQLiteSyncService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error en obtenerPaginasLeidasHoy: " + e.getMessage());
         }
-        if (total == 0 && !utils.ConfigManager.isOfflineMode()) return remote.obtenerPaginasLeidasHoy();
+        if (total == 0 && !utils.ConfigManager.isOfflineMode())
+            return remote.obtenerPaginasLeidasHoy();
         return total;
     }
 
     @Override
     public List<DataPoint> obtenerDatosGrafica(String column, int libroId, int minPag, boolean agruparPorDia,
-                                               boolean esHeatmap, boolean esDual) {
+            boolean esHeatmap, boolean esDual) {
         if (!utils.ConfigManager.isOfflineMode() && !isOffline)
             return remote.obtenerDatosGrafica(column, libroId, minPag, agruparPorDia, esHeatmap, esDual);
         List<Sesion> lista = esHeatmap ? obtenerTodasLasSesiones() : obtenerSesionesPorLibro(libroId);
@@ -741,7 +781,7 @@ public class SQLiteSyncService implements DatabaseService {
             Map<String, List<Sesion>> porDia = new LinkedHashMap<>();
             for (Sesion s : lista) {
                 String dia = (s.getFecha() != null && s.getFecha().length() >= 5) ? normalizeDate(s.getFecha()) : "N/A";
-                porDia.computeIfAbsent(dia, k -> new ArrayList<>()).add(s);
+                porDia.computeIfAbsent(dia, ignored -> new ArrayList<>()).add(s);
             }
             for (Map.Entry<String, List<Sesion>> entry : porDia.entrySet()) {
                 String fecha = entry.getKey();
@@ -749,23 +789,39 @@ public class SQLiteSyncService implements DatabaseService {
                 String capStr = diaList.stream().map(Sesion::getCapitulo).filter(c -> c != null && !c.isEmpty())
                         .collect(Collectors.joining(";"));
                 double val = 0, valSec = 0;
-                if (column.equals("paginas")) val = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
-                else if (column.equals("pag_fin")) val = diaList.stream().mapToDouble(Sesion::getPaginaFin).max().orElse(0);
-                else if (column.equals("ppm")) { val = diaList.stream().mapToDouble(Sesion::getPpm).average().orElse(0); valSec = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum(); }
-                else if (column.equals("pph")) val = diaList.stream().mapToDouble(Sesion::getPph).average().orElse(0);
-                else if (column.equals("minutos")) val = diaList.stream().mapToDouble(Sesion::getMinutos).sum();
-                if (esDual) { val = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum(); valSec = diaList.stream().mapToDouble(Sesion::getMinutos).sum(); }
+                switch (column) {
+                    case "paginas" -> val = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
+                    case "pag_fin" -> val = diaList.stream().mapToDouble(Sesion::getPaginaFin).max().orElse(0);
+                    case "ppm" -> {
+                        val = diaList.stream().mapToDouble(Sesion::getPpm).average().orElse(0);
+                        valSec = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
+                    }
+                    case "pph" -> val = diaList.stream().mapToDouble(Sesion::getPph).average().orElse(0);
+                    case "minutos" -> val = diaList.stream().mapToDouble(Sesion::getMinutos).sum();
+                }
+                if (esDual) {
+                    val = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
+                    valSec = diaList.stream().mapToDouble(Sesion::getMinutos).sum();
+                }
                 result.add(new DataPoint(fecha, val, valSec, capStr));
             }
         } else {
             for (Sesion s : lista) {
                 double val = 0, valSec = 0;
-                if (column.equals("paginas")) val = s.getPaginasLeidas();
-                else if (column.equals("pag_fin")) val = s.getPaginaFin();
-                else if (column.equals("ppm")) { val = s.getPpm(); valSec = s.getPaginasLeidas(); }
-                else if (column.equals("pph")) val = s.getPph();
-                else if (column.equals("minutos")) val = s.getMinutos();
-                if (esDual) { val = s.getPaginasLeidas(); valSec = s.getMinutos(); }
+                switch (column) {
+                    case "paginas" -> val = s.getPaginasLeidas();
+                    case "pag_fin" -> val = s.getPaginaFin();
+                    case "ppm" -> {
+                        val = s.getPpm();
+                        valSec = s.getPaginasLeidas();
+                    }
+                    case "pph" -> val = s.getPph();
+                    case "minutos" -> val = s.getMinutos();
+                }
+                if (esDual) {
+                    val = s.getPaginasLeidas();
+                    valSec = s.getMinutos();
+                }
                 result.add(new DataPoint(s.getFecha(), val, valSec, s.getCapitulo()));
             }
         }
@@ -781,14 +837,16 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public void sincronizarConNube() {
-        if (utils.ConfigManager.isOfflineMode()) return;
+        if (utils.ConfigManager.isOfflineMode())
+            return;
         sincronizarPendientes();
         descargarDeNube();
         utils.ConfigManager.setLastSyncTimestamp(java.time.Instant.now().toString());
     }
 
     private void sincronizarPendientes() {
-        if (utils.ConfigManager.isOfflineMode()) return;
+        if (utils.ConfigManager.isOfflineMode())
+            return;
         boolean hayFallos = false;
         try {
             String uid = getLocalUserId();
@@ -801,7 +859,7 @@ public class SQLiteSyncService implements DatabaseService {
                     int paginas = rs.getInt("paginas_totales");
                     int isSync = rs.getInt("sincronizado");
                     int localId = rs.getInt("id");
-                    int rid = -1;
+                    int rid;
                     try {
                         if (isSync == 0) {
                             remote.guardarLibro(nombre, paginas);
@@ -814,22 +872,33 @@ public class SQLiteSyncService implements DatabaseService {
                         hayFallos = true;
                         continue;
                     }
-                    if (rid == -1) { hayFallos = true; continue; }
+                    if (rid == -1) {
+                        hayFallos = true;
+                        continue;
+                    }
                     try {
                         remote.actualizarEstadoLibro(rid, rs.getString("estado"));
                         remote.actualizarPaginasTotales(rid, paginas);
                         String cv = rs.getString("cover_url");
-                        if (cv != null && !cv.isEmpty()) remote.guardarCoverUrl(rid, cv);
-                    } catch (Exception e) { hayFallos = true; continue; }
+                        if (cv != null && !cv.isEmpty())
+                            remote.guardarCoverUrl(rid, cv);
+                    } catch (Exception e) {
+                        hayFallos = true;
+                        continue;
+                    }
 
                     int oldId = rs.getInt("id");
                     try (PreparedStatement upd = conn.prepareStatement(
                             "UPDATE libros SET id=?, sincronizado=1, dirty=0 WHERE id=?")) {
-                        upd.setInt(1, rid); upd.setInt(2, oldId); upd.executeUpdate();
+                        upd.setInt(1, rid);
+                        upd.setInt(2, oldId);
+                        upd.executeUpdate();
                     }
                     try (PreparedStatement updS = conn.prepareStatement(
                             "UPDATE sesiones SET libro_id=? WHERE libro_id=?")) {
-                        updS.setInt(1, rid); updS.setInt(2, oldId); updS.executeUpdate();
+                        updS.setInt(1, rid);
+                        updS.setInt(2, oldId);
+                        updS.executeUpdate();
                     }
                 }
             }
@@ -848,21 +917,28 @@ public class SQLiteSyncService implements DatabaseService {
                         ResultSet rsLibro = chkLibro.executeQuery();
                         libroSincronizado = rsLibro.next() && rsLibro.getInt("sincronizado") == 1;
                     }
-                    if (!libroSincronizado) { hayFallos = true; continue; }
+                    if (!libroSincronizado) {
+                        hayFallos = true;
+                        continue;
+                    }
 
-                    boolean ok = false;
+                    boolean ok;
                     try {
                         ok = remote.insertarSesionManualConUuid(
                                 rs.getInt("libro_id"), rs.getString("fecha"), rs.getString("capitulo"),
                                 rs.getInt("pag_inicio"), rs.getInt("pag_fin"), rs.getInt("paginas_leidas"),
                                 rs.getDouble("minutos"), rs.getDouble("ppm"), rs.getDouble("pph"),
                                 rs.getString("uuid"));
-                    } catch (Exception e) { hayFallos = true; continue; }
+                    } catch (Exception e) {
+                        hayFallos = true;
+                        continue;
+                    }
 
                     if (ok) {
                         try (PreparedStatement upd = conn
                                 .prepareStatement("UPDATE sesiones SET sincronizado=1, dirty=0 WHERE id=?")) {
-                            upd.setInt(1, rs.getInt("id")); upd.executeUpdate();
+                            upd.setInt(1, rs.getInt("id"));
+                            upd.executeUpdate();
                         }
                     } else {
                         hayFallos = true;
@@ -877,11 +953,17 @@ public class SQLiteSyncService implements DatabaseService {
                     int libroId = rs.getInt("libro_id");
                     try {
                         if (remote.eliminarLibro(libroId)) {
-                            try (PreparedStatement del = conn.prepareStatement("DELETE FROM deleted_libros WHERE libro_id=?")) {
-                                del.setInt(1, libroId); del.executeUpdate();
+                            try (PreparedStatement del = conn
+                                    .prepareStatement("DELETE FROM deleted_libros WHERE libro_id=?")) {
+                                del.setInt(1, libroId);
+                                del.executeUpdate();
                             }
-                        } else { hayFallos = true; }
-                    } catch (Exception e) { hayFallos = true; }
+                        } else {
+                            hayFallos = true;
+                        }
+                    } catch (Exception e) {
+                        hayFallos = true;
+                    }
                 }
             }
 
@@ -892,19 +974,26 @@ public class SQLiteSyncService implements DatabaseService {
                     String uuid = rs.getString("uuid");
                     try {
                         if (remote.eliminarSesionPorUuid(uuid)) {
-                            try (PreparedStatement del = conn.prepareStatement("DELETE FROM deleted_sesiones WHERE uuid=?")) {
-                                del.setString(1, uuid); del.executeUpdate();
+                            try (PreparedStatement del = conn
+                                    .prepareStatement("DELETE FROM deleted_sesiones WHERE uuid=?")) {
+                                del.setString(1, uuid);
+                                del.executeUpdate();
                             }
-                        } else { hayFallos = true; }
-                    } catch (Exception e) { hayFallos = true; }
+                        } else {
+                            hayFallos = true;
+                        }
+                    } catch (Exception e) {
+                        hayFallos = true;
+                    }
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error BD (sincronizar): " + e.getMessage());
             hayFallos = true;
         }
         syncPending.set(hayFallos);
-        if (!hayFallos) System.out.println("✅ Sincronización completada sin pendientes.");
+        if (!hayFallos)
+            System.out.println("✅ Sincronización completada sin pendientes.");
     }
 
     @Override
@@ -915,22 +1004,21 @@ public class SQLiteSyncService implements DatabaseService {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     list.add(new Sesion(
-                        rs.getInt("id"),
-                        rs.getString("uuid"),
-                        rs.getInt("libro_id"),
-                        rs.getString("fecha"),
-                        rs.getString("capitulo"),
-                        rs.getInt("pag_inicio"),
-                        rs.getInt("pag_fin"),
-                        rs.getInt("paginas_leidas"),
-                        rs.getDouble("minutos"),
-                        rs.getDouble("ppm"),
-                        rs.getDouble("pph")
-                    ));
+                            rs.getInt("id"),
+                            rs.getString("uuid"),
+                            rs.getInt("libro_id"),
+                            rs.getString("fecha"),
+                            rs.getString("capitulo"),
+                            rs.getInt("pag_inicio"),
+                            rs.getInt("pag_fin"),
+                            rs.getInt("paginas_leidas"),
+                            rs.getDouble("minutos"),
+                            rs.getDouble("ppm"),
+                            rs.getDouble("pph")));
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error BD (obtenerSesiones): " + e.getMessage());
         }
         return list;
     }
@@ -943,22 +1031,22 @@ public class SQLiteSyncService implements DatabaseService {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     list.add(new model.Libro(
-                        rs.getInt("id"),
-                        rs.getString("nombre"),
-                        rs.getInt("paginas_totales"),
-                        rs.getString("cover_url"),
-                        rs.getString("estado")
-                    ));
+                            rs.getInt("id"),
+                            rs.getString("nombre"),
+                            rs.getInt("paginas_totales"),
+                            rs.getString("cover_url"),
+                            rs.getString("estado")));
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error BD (obtenerLibros): " + e.getMessage());
         }
         return list;
     }
 
     private void descargarDeNube() {
-        if (utils.ConfigManager.isOfflineMode()) return;
+        if (utils.ConfigManager.isOfflineMode())
+            return;
         try {
             String uid = getLocalUserId();
             String lastSync = utils.ConfigManager.getLastSyncTimestamp();
@@ -966,30 +1054,38 @@ public class SQLiteSyncService implements DatabaseService {
             try (PreparedStatement countSt = conn.prepareStatement("SELECT count(*) FROM sesiones WHERE user_id=?")) {
                 countSt.setString(1, uid);
                 ResultSet rsCount = countSt.executeQuery();
-                if (rsCount.next() && rsCount.getInt(1) == 0) lastSync = null;
+                if (rsCount.next() && rsCount.getInt(1) == 0)
+                    lastSync = null;
             }
 
             List<model.Libro> remoteBooks = remote.obtenerTodosLosLibrosDesde(lastSync);
             conn.setAutoCommit(false);
 
             for (model.Libro b : remoteBooks) {
-                try (PreparedStatement check = conn.prepareStatement("SELECT id FROM libros WHERE id=? AND user_id=?")) {
+                try (PreparedStatement check = conn
+                        .prepareStatement("SELECT id FROM libros WHERE id=? AND user_id=?")) {
                     check.setInt(1, b.getId());
                     check.setString(2, getLocalUserId());
                     if (!check.executeQuery().next()) {
                         try (PreparedStatement in = conn.prepareStatement(
                                 "INSERT INTO libros(id, user_id, nombre, paginas_totales, cover_url, estado, sincronizado) VALUES(?,?,?,?,?,?,1)")) {
-                            in.setInt(1, b.getId()); in.setString(2, getLocalUserId());
-                            in.setString(3, b.getNombre()); in.setInt(4, b.getPaginasTotales());
-                            in.setString(5, b.getCoverUrl()); in.setString(6, b.getEstado());
+                            in.setInt(1, b.getId());
+                            in.setString(2, getLocalUserId());
+                            in.setString(3, b.getNombre());
+                            in.setInt(4, b.getPaginasTotales());
+                            in.setString(5, b.getCoverUrl());
+                            in.setString(6, b.getEstado());
                             in.executeUpdate();
                         }
                     } else {
                         try (PreparedStatement upd = conn.prepareStatement(
                                 "UPDATE libros SET nombre=?, paginas_totales=?, cover_url=?, estado=?, dirty=0 WHERE id=? AND user_id=?")) {
-                            upd.setString(1, b.getNombre()); upd.setInt(2, b.getPaginasTotales());
-                            upd.setString(3, b.getCoverUrl()); upd.setString(4, b.getEstado());
-                            upd.setInt(5, b.getId()); upd.setString(6, getLocalUserId());
+                            upd.setString(1, b.getNombre());
+                            upd.setInt(2, b.getPaginasTotales());
+                            upd.setString(3, b.getCoverUrl());
+                            upd.setString(4, b.getEstado());
+                            upd.setInt(5, b.getId());
+                            upd.setString(6, getLocalUserId());
                             upd.executeUpdate();
                         }
                     }
@@ -1007,50 +1103,73 @@ public class SQLiteSyncService implements DatabaseService {
                         if (rs.next()) {
                             int localId = rs.getInt("id");
                             if (localId != remoteId) {
-                                try (PreparedStatement upd = conn.prepareStatement("UPDATE sesiones SET id=? WHERE uuid=?")) {
-                                    upd.setInt(1, remoteId); upd.setString(2, uuid); upd.executeUpdate();
+                                try (PreparedStatement upd = conn
+                                        .prepareStatement("UPDATE sesiones SET id=? WHERE uuid=?")) {
+                                    upd.setInt(1, remoteId);
+                                    upd.setString(2, uuid);
+                                    upd.executeUpdate();
                                 }
                             }
                         }
                     }
-                    
+
                     // MEJORA: Evitar que sesiones eliminadas asíncronamente se vuelvan a inyectar
                     boolean eliminadaPendiente = false;
-                    try (PreparedStatement checkDel = conn.prepareStatement("SELECT uuid FROM deleted_sesiones WHERE uuid=?")) {
+                    try (PreparedStatement checkDel = conn
+                            .prepareStatement("SELECT uuid FROM deleted_sesiones WHERE uuid=?")) {
                         checkDel.setString(1, uuid);
-                        if (checkDel.executeQuery().next()) eliminadaPendiente = true;
+                        if (checkDel.executeQuery().next())
+                            eliminadaPendiente = true;
                     }
-                    if (eliminadaPendiente) continue;
+                    if (eliminadaPendiente)
+                        continue;
 
                     try (PreparedStatement ps = conn.prepareStatement(
                             "INSERT OR IGNORE INTO sesiones(uuid, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, sincronizado, dirty, id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?)")) {
-                        ps.setString(1, uuid); ps.setString(2, getLocalUserId());
-                        ps.setInt(3, s.getLibroId()); ps.setString(4, s.getCapitulo());
-                        ps.setInt(5, s.getPaginaInicio()); ps.setInt(6, s.getPaginaFin());
-                        ps.setInt(7, s.getPaginasLeidas()); ps.setDouble(8, s.getMinutos());
-                        ps.setDouble(9, s.getPpm()); ps.setDouble(10, s.getPph());
-                        ps.setString(11, s.getFecha()); ps.setInt(12, 1); ps.setInt(13, remoteId);
+                        ps.setString(1, uuid);
+                        ps.setString(2, getLocalUserId());
+                        ps.setInt(3, s.getLibroId());
+                        ps.setString(4, s.getCapitulo());
+                        ps.setInt(5, s.getPaginaInicio());
+                        ps.setInt(6, s.getPaginaFin());
+                        ps.setInt(7, s.getPaginasLeidas());
+                        ps.setDouble(8, s.getMinutos());
+                        ps.setDouble(9, s.getPpm());
+                        ps.setDouble(10, s.getPph());
+                        ps.setString(11, s.getFecha());
+                        ps.setInt(12, 1);
+                        ps.setInt(13, remoteId);
                         ps.executeUpdate();
                     }
                 }
             }
             conn.commit();
         } catch (SQLException e) {
-            try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
-            e.printStackTrace();
+            try {
+                conn.rollback();
+            } catch (SQLException ex) {
+                System.err.println("[SQLiteSync] Error rollback: " + ex.getMessage());
+            }
+            System.err.println("[SQLiteSync] Error BD (descargar SQL): " + e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[SQLiteSync] Error BD (descargar): " + e.getMessage());
         } finally {
-            try { conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println("[SQLiteSync] Error commit: " + e.getMessage());
+            }
         }
     }
 
     private void repararIDsCorruptos() {
-        if (utils.ConfigManager.isOfflineMode()) return;
+        if (utils.ConfigManager.isOfflineMode())
+            return;
         System.out.println("🔍 Comprobando posibles IDs corruptos (-1)...");
         try {
             String uid = getLocalUserId();
-            try (PreparedStatement check = conn.prepareStatement("SELECT id, nombre FROM libros WHERE id = -1 AND user_id = ?")) {
+            try (PreparedStatement check = conn
+                    .prepareStatement("SELECT id, nombre FROM libros WHERE id = -1 AND user_id = ?")) {
                 check.setString(1, uid);
                 ResultSet rs = check.executeQuery();
                 while (rs.next()) {
@@ -1061,70 +1180,126 @@ public class SQLiteSyncService implements DatabaseService {
                         try {
                             try (PreparedStatement upd = conn.prepareStatement(
                                     "UPDATE libros SET id = ?, sincronizado = 1, dirty = 0 WHERE id = -1 AND nombre = ? AND user_id = ?")) {
-                                upd.setInt(1, rid); upd.setString(2, nombre); upd.setString(3, uid); upd.executeUpdate();
+                                upd.setInt(1, rid);
+                                upd.setString(2, nombre);
+                                upd.setString(3, uid);
+                                upd.executeUpdate();
                             }
                             try (PreparedStatement updS = conn.prepareStatement(
                                     "UPDATE sesiones SET libro_id = ? WHERE libro_id = -1 AND user_id = ?")) {
-                                updS.setInt(1, rid); updS.setString(2, uid); updS.executeUpdate();
+                                updS.setInt(1, rid);
+                                updS.setString(2, uid);
+                                updS.executeUpdate();
                             }
                             conn.commit();
                         } catch (SQLException e) {
-                            conn.rollback(); e.printStackTrace();
-                        } finally { conn.setAutoCommit(true); }
+                            try {
+                                conn.rollback();
+                            } catch (SQLException ignored) {
+                            }
+                            System.err.println("[SQLiteSync] Error al reparar ID: " + e.getMessage());
+                        } finally {
+                            try {
+                                conn.setAutoCommit(true);
+                            } catch (SQLException ignored) {
+                            }
+                        }
                     }
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error al chequear IDs: " + e.getMessage());
+        }
     }
 
     @Override
     public boolean insertarSesionManualConUuid(int lId, String fecha, String cap, int ini, int fin, int pags,
-                                               double mins, double ppm, double pph, String uuid) {
+            double mins, double ppm, double pph, String uuid) {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT OR IGNORE INTO sesiones(uuid, user_id, libro_id, capitulo, pag_inicio, pag_fin, paginas_leidas, minutos, ppm, pph, fecha, sincronizado, dirty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
-            ps.setString(1, uuid); ps.setString(2, getLocalUserId()); ps.setInt(3, lId);
-            ps.setString(4, cap); ps.setInt(5, ini); ps.setInt(6, fin); ps.setInt(7, pags);
-            ps.setDouble(8, mins); ps.setDouble(9, ppm); ps.setDouble(10, pph); ps.setString(11, fecha);
-            ps.setInt(12, 1); ps.setInt(13, 1);
+            ps.setString(1, uuid);
+            ps.setString(2, getLocalUserId());
+            ps.setInt(3, lId);
+            ps.setString(4, cap);
+            ps.setInt(5, ini);
+            ps.setInt(6, fin);
+            ps.setInt(7, pags);
+            ps.setDouble(8, mins);
+            ps.setDouble(9, ppm);
+            ps.setDouble(10, pph);
+            ps.setString(11, fecha);
+            ps.setInt(12, 1);
+            ps.setInt(13, 1);
             boolean ok = ps.executeUpdate() > 0;
-            if (ok) syncExecutor.execute(this::sincronizarPendientes);
+            if (ok)
+                syncExecutor.execute(this::sincronizarPendientes);
             return ok;
-        } catch (Exception e) { e.printStackTrace(); return false; }
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error BD (insertar): " + e.getMessage());
+            return false;
+        }
     }
 
     @Override
     public boolean eliminarLibro(int libroId) {
         String uid = getLocalUserId();
-        try { conn.setAutoCommit(false); } catch (SQLException ex) { ex.printStackTrace(); return false; }
+        try {
+            conn.setAutoCommit(false);
+        } catch (SQLException ex) {
+            System.err.println("[SQLiteSync] Error auto-commit: " + ex.getMessage());
+            return false;
+        }
         try {
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sesiones WHERE libro_id=? AND user_id=?")) {
-                ps.setInt(1, libroId); ps.setString(2, uid); ps.executeUpdate();
+                ps.setInt(1, libroId);
+                ps.setString(2, uid);
+                ps.executeUpdate();
             }
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM libros WHERE id=? AND user_id=?")) {
-                ps.setInt(1, libroId); ps.setString(2, uid);
-                if (ps.executeUpdate() == 0) { conn.rollback(); return false; }
+                ps.setInt(1, libroId);
+                ps.setString(2, uid);
+                if (ps.executeUpdate() == 0) {
+                    conn.rollback();
+                    return false;
+                }
             }
             conn.commit();
             if (utils.ConfigManager.isOfflineMode()) {
-                try (PreparedStatement psDel = conn.prepareStatement("INSERT OR IGNORE INTO deleted_libros(libro_id, user_id) VALUES(?,?)")) {
-                    psDel.setInt(1, libroId); psDel.setString(2, getLocalUserId()); psDel.executeUpdate();
+                try (PreparedStatement psDel = conn
+                        .prepareStatement("INSERT OR IGNORE INTO deleted_libros(libro_id, user_id) VALUES(?,?)")) {
+                    psDel.setInt(1, libroId);
+                    psDel.setString(2, getLocalUserId());
+                    psDel.executeUpdate();
                 }
             } else {
                 syncExecutor.submit(() -> {
                     if (!remote.eliminarLibro(libroId)) {
-                        try (PreparedStatement psDel = conn.prepareStatement("INSERT OR IGNORE INTO deleted_libros(libro_id, user_id) VALUES(?,?)")) {
-                            psDel.setInt(1, libroId); psDel.setString(2, getLocalUserId()); psDel.executeUpdate();
-                        } catch (Exception ex) { ex.printStackTrace(); }
+                        try (PreparedStatement psDel = conn.prepareStatement(
+                                "INSERT OR IGNORE INTO deleted_libros(libro_id, user_id) VALUES(?,?)")) {
+                            psDel.setInt(1, libroId);
+                            psDel.setString(2, getLocalUserId());
+                            psDel.executeUpdate();
+                        } catch (Exception ex) {
+                            System.err.println("[SQLiteSync] Error (ex): " + ex.getMessage());
+                        }
                     }
                 });
             }
             return true;
         } catch (SQLException e) {
-            try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
-            e.printStackTrace();
+            try {
+                conn.rollback();
+            } catch (SQLException ex) {
+                System.err.println("[SQLiteSync] Error rollback: " + ex.getMessage());
+            }
+            System.err.println("[SQLiteSync] Error SQL: " + e.getMessage());
             return false;
         } finally {
-            try { conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println("[SQLiteSync] Error commit: " + e.getMessage());
+            }
         }
     }
 
@@ -1149,7 +1324,9 @@ public class SQLiteSyncService implements DatabaseService {
                     resultado.add(new DataPoint(rs.getString("nombre"), rs.getDouble("media_ppm"), 0, ""));
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error BD (ppm media): " + e.getMessage());
+        }
         return resultado;
     }
 
@@ -1158,34 +1335,41 @@ public class SQLiteSyncService implements DatabaseService {
      * Permite al UI mostrar un indicador visual de sync pendiente.
      */
     public boolean haySincronizacionPendiente() {
-        if (utils.ConfigManager.isOfflineMode()) return false;
+        if (utils.ConfigManager.isOfflineMode())
+            return false;
         try {
             String uid = getLocalUserId();
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT COUNT(*) FROM sesiones WHERE (dirty=1 OR sincronizado=0) AND user_id=?")) {
                 ps.setString(1, uid);
                 ResultSet rs = ps.executeQuery();
-                if (rs.next() && rs.getInt(1) > 0) return true;
+                if (rs.next() && rs.getInt(1) > 0)
+                    return true;
             }
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT COUNT(*) FROM libros WHERE (dirty=1 OR sincronizado=0) AND user_id=?")) {
                 ps.setString(1, uid);
                 ResultSet rs = ps.executeQuery();
-                if (rs.next() && rs.getInt(1) > 0) return true;
+                if (rs.next() && rs.getInt(1) > 0)
+                    return true;
             }
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT COUNT(*) FROM deleted_sesiones WHERE user_id=?")) {
                 ps.setString(1, uid);
                 ResultSet rs = ps.executeQuery();
-                if (rs.next() && rs.getInt(1) > 0) return true;
+                if (rs.next() && rs.getInt(1) > 0)
+                    return true;
             }
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT COUNT(*) FROM deleted_libros WHERE user_id=?")) {
                 ps.setString(1, uid);
                 ResultSet rs = ps.executeQuery();
-                if (rs.next() && rs.getInt(1) > 0) return true;
+                if (rs.next() && rs.getInt(1) > 0)
+                    return true;
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error BD (sync pen): " + e.getMessage());
+        }
         return false;
     }
 }

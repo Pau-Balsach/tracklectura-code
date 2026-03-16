@@ -38,14 +38,14 @@ public interface DatabaseService {
         int obtenerUltimaPaginaLeida(int libroId);
 
         boolean actualizarSesionCompleta(int id, int ini, int fin, int pags, double mins, double ppm, double pph,
-                        String cap);
+                        String cap, String fecha);
 
         // Estadísticas
         int obtenerPaginasTotales(int libroId);
 
         double obtenerPromedioPPH(int libroId);
 
-        double obtenerPromedioPPM(int libroId);
+
 
         double obtenerVelocidadMaxima(int libroId);
 

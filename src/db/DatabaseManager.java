@@ -8,10 +8,9 @@ import java.util.List;
 /**
  * Gestor central de la base de datos.
  * Conecta con Supabase a través de SQLiteSyncService (local-first).
- *
- * MEJORA: La inicialización es idempotente. Llamar a {@link #inicializar()}
- * varias veces (por ejemplo, desde el bloque static y desde LoginWindow)
- * ya no crea conexiones duplicadas ni deja el estado inconsistente.
+ * <p>
+ * La inicialización es idempotente: llamadas múltiples a {@link #inicializar()}
+ * no crean conexiones duplicadas ni dejan el estado inconsistente.
  */
 public class DatabaseManager {
 
@@ -39,7 +38,7 @@ public class DatabaseManager {
             service.crearEsquema();
             inicializado = true;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[DatabaseManager] Error al inicializar la base de datos: " + e.getMessage());
             inicializado = false;
             javax.swing.JOptionPane.showMessageDialog(null,
                     "Error al conectar con la base de datos:\n" + e.getMessage(),
@@ -48,19 +47,7 @@ public class DatabaseManager {
         }
     }
 
-    /**
-     * Reinicia forzosamente la conexión (útil tras login cuando cambia el usuario).
-     * A diferencia de {@link #inicializar()}, siempre recrea el servicio.
-     */
-    public static synchronized void reinicializar() {
-        if (service != null) {
-            try {
-                service.cerrar();
-            } catch (Exception ignored) { }
-        }
-        inicializado = false;
-        inicializar();
-    }
+
 
     public static void cerrarYSincronizar() {
         if (service != null) {
@@ -70,7 +57,10 @@ public class DatabaseManager {
         }
     }
 
-    /** @deprecated Exponer la conexión JDBC rompe la encapsulación. Usar los métodos del servicio. */
+    /**
+     * @deprecated Exponer la conexión JDBC rompe la encapsulación. Usar los métodos
+     *             del servicio.
+     */
     @Deprecated
     public static Connection getConnection() {
         return service != null ? service.getConnection() : null;
@@ -93,7 +83,7 @@ public class DatabaseManager {
     }
 
     public static void guardarSesion(int libroId, String cap, int pIni, int pFin, int pags, double mins,
-                                     double ppm, double pph, String fecha) {
+            double ppm, double pph, String fecha) {
         service.guardarSesion(libroId, cap, pIni, pFin, pags, mins, ppm, pph, fecha);
     }
 
@@ -168,13 +158,13 @@ public class DatabaseManager {
     }
 
     public static boolean insertarSesionManual(int libroId, String fecha, String cap, int ini, int fin,
-                                               int pags, double mins, double ppm, double pph) {
+            int pags, double mins, double ppm, double pph) {
         return service.insertarSesionManual(libroId, fecha, cap, ini, fin, pags, mins, ppm, pph);
     }
 
     public static boolean actualizarSesionCompleta(int id, int ini, int fin, int pags, double mins, double ppm,
-                                                   double pph, String cap) {
-        return service.actualizarSesionCompleta(id, ini, fin, pags, mins, ppm, pph, cap);
+            double pph, String cap, String fecha) {
+        return service.actualizarSesionCompleta(id, ini, fin, pags, mins, ppm, pph, cap, fecha);
     }
 
     public static DatabaseService getService() {
@@ -186,7 +176,7 @@ public class DatabaseManager {
     }
 
     public static List<DataPoint> obtenerDatosGrafica(String column, int libroId, int minPag, boolean agruparPorDia,
-                                                      boolean esHeatmap, boolean esDual) {
+            boolean esHeatmap, boolean esDual) {
         return service.obtenerDatosGrafica(column, libroId, minPag, agruparPorDia, esHeatmap, esDual);
     }
 
@@ -204,7 +194,8 @@ public class DatabaseManager {
 
     /** Devuelve true si hay sesiones o libros pendientes de sincronizar. */
     public static boolean haySincronizacionPendiente() {
-        if (service == null) return false;
+        if (service == null)
+            return false;
         return service.haySincronizacionPendiente();
     }
 }

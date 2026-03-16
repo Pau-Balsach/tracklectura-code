@@ -11,6 +11,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.sql.Connection;
@@ -36,7 +38,7 @@ public class PostgresDatabaseService implements DatabaseService {
     }
 
     @Override
-    public void conectar() throws Exception {
+    public void conectar() {
         if (!configurado) {
             System.out.println("✅ REST Supabase Configurado.");
             configurado = true;
@@ -44,7 +46,7 @@ public class PostgresDatabaseService implements DatabaseService {
     }
 
     @Override
-    public void crearEsquema() throws Exception {
+    public void crearEsquema() {
         // No-Op in REST API. User manages tables in Supabase Web.
     }
 
@@ -62,7 +64,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             httpClient.send(req, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error registrando usuario: " + e.getMessage());
         }
     }
 
@@ -94,7 +96,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             httpClient.send(req, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error guardando libro: " + e.getMessage());
         }
     }
 
@@ -110,7 +112,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             httpClient.send(req, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error actualizando páginas totales: " + e.getMessage());
         }
     }
 
@@ -126,7 +128,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             httpClient.send(req, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error guardando cover URL: " + e.getMessage());
         }
     }
 
@@ -146,14 +148,14 @@ public class PostgresDatabaseService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo cover URL: " + e.getMessage());
         }
         return null;
     }
 
     @Override
-    public void guardarSesion(int libroId, String cap, int pIni, int pFin, int pags, double mins, double ppm,
-            double pph, String fecha) {
+    public void guardarSesion(int libroId, String cap, int pIni, int pFin, int pags, double mins,
+            double ppm, double pph, String fecha) {
         insertarSesionManual(libroId, fecha, cap, pIni, pFin, pags, mins, ppm, pph);
     }
 
@@ -162,7 +164,7 @@ public class PostgresDatabaseService implements DatabaseService {
         try {
             String userId = SupabaseAuthService.getCurrentUserId();
             HttpRequest req = baseRequest()
-                    .uri(URI.create(getBaseUrl() + "/libros?nombre=eq." + java.net.URLEncoder.encode(nombre, "UTF-8")
+                    .uri(URI.create(getBaseUrl() + "/libros?nombre=eq." + URLEncoder.encode(nombre, StandardCharsets.UTF_8)
                             + "&user_id=eq." + userId + "&select=id"))
                     .GET()
                     .build();
@@ -178,8 +180,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 System.err.println("❌ Error " + resp.statusCode() + " al obtener ID de libro: " + resp.body());
             }
         } catch (Exception e) {
-            System.err.println("❌ Fallo crítico de red al obtener ID de libro: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("[Postgres] Fallo crítico de red al obtener ID de libro: " + e.getMessage());
         }
         return -1;
     }
@@ -196,7 +197,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             httpClient.send(req, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error actualizando estado libro: " + e.getMessage());
         }
     }
 
@@ -210,7 +211,7 @@ public class PostgresDatabaseService implements DatabaseService {
             HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (res.statusCode() == 200) {
                 JsonArray arr = JsonParser.parseString(res.body()).getAsJsonArray();
-                if (arr.size() > 0) {
+                if (!arr.isEmpty()) {
                     JsonElement estadoElement = arr.get(0).getAsJsonObject().get("estado");
                     if (estadoElement != null && !estadoElement.isJsonNull()) {
                         return estadoElement.getAsString();
@@ -218,7 +219,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo estado libro: " + e.getMessage());
         }
         return "Por leer";
     }
@@ -240,7 +241,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo libros: " + e.getMessage());
         }
         return list;
     }
@@ -261,14 +262,14 @@ public class PostgresDatabaseService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo última página leida: " + e.getMessage());
         }
         return 0;
     }
 
     @Override
     public boolean actualizarSesionCompleta(int id, int ini, int fin, int pags, double mins, double ppm, double pph,
-            String cap) {
+            String cap, String fecha) {
         try {
             JsonObject json = new JsonObject();
             json.addProperty("pagina_inicio", ini);
@@ -278,6 +279,7 @@ public class PostgresDatabaseService implements DatabaseService {
             json.addProperty("ppm", ppm);
             json.addProperty("pph", pph);
             json.addProperty("capitulos", cap);
+            json.addProperty("fecha", fecha);
 
             HttpRequest req = baseRequest()
                     .uri(URI.create(getBaseUrl() + "/sesiones?id=eq." + id))
@@ -285,7 +287,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             return httpClient.send(req, HttpResponse.BodyHandlers.discarding()).statusCode() < 300;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error actualizando sesión: " + e.getMessage());
             return false;
         }
     }
@@ -305,7 +307,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo páginas totales: " + e.getMessage());
         }
         return 0;
     }
@@ -317,9 +319,9 @@ public class PostgresDatabaseService implements DatabaseService {
         return o.get(key).getAsInt();
     }
 
-    private double safeDouble(JsonObject o, String key, double def) {
+    private double safeDouble(JsonObject o, String key) {
         if (!o.has(key) || o.get(key).isJsonNull())
-            return def;
+            return 0.0;
         return o.get(key).getAsDouble();
     }
 
@@ -380,13 +382,13 @@ public class PostgresDatabaseService implements DatabaseService {
                             safeInt(o, "pagina_inicio", 0),
                             safeInt(o, "pagina_fin", 0),
                             safeInt(o, "paginas", 0),
-                            safeDouble(o, "minutos", 0.0),
-                            safeDouble(o, "ppm", 0.0),
-                            safeDouble(o, "pph", 0.0)));
+                            safeDouble(o, "minutos"),
+                            safeDouble(o, "ppm"),
+                            safeDouble(o, "pph")));
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo todas las sesiones: " + e.getMessage());
         }
         return list;
     }
@@ -414,13 +416,13 @@ public class PostgresDatabaseService implements DatabaseService {
                             safeInt(o, "pagina_inicio", 0),
                             safeInt(o, "pagina_fin", 0),
                             safeInt(o, "paginas", 0),
-                            safeDouble(o, "minutos", 0.0),
-                            safeDouble(o, "ppm", 0.0),
-                            safeDouble(o, "pph", 0.0)));
+                            safeDouble(o, "minutos"),
+                            safeDouble(o, "ppm"),
+                            safeDouble(o, "pph")));
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo sesiones por libro: " + e.getMessage());
         }
         return list;
     }
@@ -431,11 +433,7 @@ public class PostgresDatabaseService implements DatabaseService {
         return list.stream().mapToDouble(Sesion::getPph).average().orElse(0.0);
     }
 
-    @Override
-    public double obtenerPromedioPPM(int libroId) {
-        List<Sesion> list = obtenerSesionesPorLibro(libroId);
-        return list.stream().mapToDouble(Sesion::getPpm).average().orElse(0.0);
-    }
+
 
     @Override
     public double obtenerVelocidadMaxima(int libroId) {
@@ -504,13 +502,13 @@ public class PostgresDatabaseService implements DatabaseService {
             List<LocalDate> unicas = fechas.stream()
                     .distinct()
                     .filter(d -> !d.isAfter(hoy)) // Ignore future dates
-                    .sorted((a, b) -> b.compareTo(a))
-                    .collect(Collectors.toList());
+                    .sorted(Comparator.reverseOrder())
+                    .toList();
 
             if (unicas.isEmpty())
                 return 0;
 
-            if (!unicas.get(0).equals(hoy) && !unicas.get(0).equals(hoy.minusDays(1))) {
+            if (!unicas.getFirst().equals(hoy) && !unicas.getFirst().equals(hoy.minusDays(1))) {
                 return 0;
             }
 
@@ -524,7 +522,7 @@ public class PostgresDatabaseService implements DatabaseService {
             }
             return racha;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error calculando racha: " + e.getMessage());
             return 0;
         }
     }
@@ -545,7 +543,7 @@ public class PostgresDatabaseService implements DatabaseService {
             }
             return total;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo páginas hoy: " + e.getMessage());
         }
         return 0;
     }
@@ -559,7 +557,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             return httpClient.send(req, HttpResponse.BodyHandlers.discarding()).statusCode() < 300;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error eliminando sesión: " + e.getMessage());
             return false;
         }
     }
@@ -573,7 +571,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             return httpClient.send(req, HttpResponse.BodyHandlers.discarding()).statusCode() < 300;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error eliminando sesión por UUID: " + e.getMessage());
             return false;
         }
     }
@@ -604,7 +602,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             return httpClient.send(req, HttpResponse.BodyHandlers.discarding()).statusCode() < 300;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error insertando sesión manual: " + e.getMessage());
             return false;
         }
     }
@@ -633,7 +631,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             return httpClient.send(req, HttpResponse.BodyHandlers.discarding()).statusCode() < 300;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error insertando sesión con UUID: " + e.getMessage());
             return false;
         }
     }
@@ -645,7 +643,7 @@ public class PostgresDatabaseService implements DatabaseService {
         List<Sesion> lista = esHeatmap ? obtenerTodasLasSesiones() : obtenerSesionesPorLibro(libroId);
         // Filtrar por pInicio >= minPag si no es heatmap
         if (!esHeatmap) {
-            lista = lista.stream().filter(s -> s.getPaginaInicio() >= minPag).collect(Collectors.toList());
+            lista = lista.stream().filter(s -> s.getPaginaInicio() >= minPag).toList();
         }
         // obtenerSesionesPorLibro ya devuelve orden ASC (cronológico)
         // por lo que no hace falta invertirlo para el gráfico.
@@ -657,7 +655,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 String dia = "N/A";
                 if (s.getFecha() != null && s.getFecha().length() >= 5)
                     dia = normalizeDate(s.getFecha());
-                porDia.computeIfAbsent(dia, k -> new ArrayList<>()).add(s);
+                porDia.computeIfAbsent(dia, ignored -> new ArrayList<>()).add(s);
             }
 
             for (Map.Entry<String, List<Sesion>> entry : porDia.entrySet()) {
@@ -669,17 +667,16 @@ public class PostgresDatabaseService implements DatabaseService {
                 double val = 0;
                 double valSec = 0;
 
-                if (column.equals("paginas"))
-                    val = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
-                else if (column.equals("pag_fin"))
-                    val = diaList.stream().mapToDouble(Sesion::getPaginaFin).max().orElse(0);
-                else if (column.equals("ppm")) {
-                    val = diaList.stream().mapToDouble(Sesion::getPpm).average().orElse(0);
-                    valSec = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
-                } else if (column.equals("pph")) {
-                    val = diaList.stream().mapToDouble(Sesion::getPph).average().orElse(0);
-                } else if (column.equals("minutos")) {
-                    val = diaList.stream().mapToDouble(Sesion::getMinutos).sum();
+                switch (column) {
+                    case "paginas" -> val = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
+                    case "pag_fin" -> val = diaList.stream().mapToDouble(Sesion::getPaginaFin).max().orElse(0);
+                    case "ppm" -> {
+                        val = diaList.stream().mapToDouble(Sesion::getPpm).average().orElse(0);
+                        valSec = diaList.stream().mapToDouble(Sesion::getPaginasLeidas).sum();
+                    }
+                    case "pph" -> val = diaList.stream().mapToDouble(Sesion::getPph).average().orElse(0);
+                    case "minutos" -> val = diaList.stream().mapToDouble(Sesion::getMinutos).sum();
+                    default -> { /* columna desconocida, val=0 */ }
                 }
 
                 if (esDual) {
@@ -693,17 +690,14 @@ public class PostgresDatabaseService implements DatabaseService {
             for (Sesion s : lista) {
                 double val = 0;
                 double valSec = 0;
-                if (column.equals("paginas"))
-                    val = s.getPaginasLeidas();
-                else if (column.equals("pag_fin"))
-                    val = s.getPaginaFin();
-                else if (column.equals("ppm")) {
-                    val = s.getPpm();
-                    valSec = s.getPaginasLeidas();
-                } else if (column.equals("pph"))
-                    val = s.getPph();
-                else if (column.equals("minutos"))
-                    val = s.getMinutos();
+                switch (column) {
+                    case "paginas" -> val = s.getPaginasLeidas();
+                    case "pag_fin" -> val = s.getPaginaFin();
+                    case "ppm" -> { val = s.getPpm(); valSec = s.getPaginasLeidas(); }
+                    case "pph" -> val = s.getPph();
+                    case "minutos" -> val = s.getMinutos();
+                    default -> { /* columna desconocida, val=0 */ }
+                }
 
                 if (esDual) {
                     val = s.getPaginasLeidas();
@@ -718,9 +712,9 @@ public class PostgresDatabaseService implements DatabaseService {
     @Override
     public List<String[]> obtenerDatosParaExportar(int libroId, int minPag, String fFiltro, boolean agrupar) {
         List<Sesion> lista = obtenerSesionesPorLibro(libroId);
-        lista = lista.stream()
+        lista = new ArrayList<>(lista.stream()
                 .filter(s -> s.getPaginaInicio() >= minPag && s.getFecha().compareTo(fFiltro) >= 0)
-                .collect(Collectors.toList());
+                .toList());
         Collections.reverse(lista);
 
         List<String[]> data = new ArrayList<>();
@@ -730,7 +724,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 String dia = "N/A";
                 if (s.getFecha() != null && s.getFecha().length() >= 5)
                     dia = normalizeDate(s.getFecha());
-                porDia.computeIfAbsent(dia, k -> new ArrayList<>()).add(s);
+                porDia.computeIfAbsent(dia, ignored -> new ArrayList<>()).add(s);
             }
             for (Map.Entry<String, List<Sesion>> entry : porDia.entrySet()) {
                 String f = entry.getKey();
@@ -772,7 +766,7 @@ public class PostgresDatabaseService implements DatabaseService {
             // Filtrar por updated_at > timestamp
             String url = getBaseUrl() + "/sesiones?user_id=eq." + userId;
             if (timestamp != null && !timestamp.isEmpty()) {
-                url += "&updated_at=gt." + java.net.URLEncoder.encode(timestamp, "UTF-8");
+                url += "&updated_at=gt." + URLEncoder.encode(timestamp, StandardCharsets.UTF_8);
             }
             url += "&order=id.asc";
 
@@ -795,13 +789,13 @@ public class PostgresDatabaseService implements DatabaseService {
                             safeInt(o, "pagina_inicio", 0),
                             safeInt(o, "pagina_fin", 0),
                             safeInt(o, "paginas", 0),
-                            safeDouble(o, "minutos", 0.0),
-                            safeDouble(o, "ppm", 0.0),
-                            safeDouble(o, "pph", 0.0)));
+                            safeDouble(o, "minutos"),
+                            safeDouble(o, "ppm"),
+                            safeDouble(o, "pph")));
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo sesiones desde timestamp: " + e.getMessage());
         }
         return list;
     }
@@ -824,7 +818,7 @@ public class PostgresDatabaseService implements DatabaseService {
                     .build();
             return httpClient.send(reqLibro, HttpResponse.BodyHandlers.discarding()).statusCode() < 300;
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error eliminando libro: " + e.getMessage());
             return false;
         }
     }
@@ -836,7 +830,7 @@ public class PostgresDatabaseService implements DatabaseService {
             String userId = SupabaseAuthService.getCurrentUserId();
             String url = getBaseUrl() + "/libros?user_id=eq." + userId;
             if (timestamp != null && !timestamp.isEmpty()) {
-                url += "&updated_at=gt." + java.net.URLEncoder.encode(timestamp, "UTF-8");
+                url += "&updated_at=gt." + URLEncoder.encode(timestamp, StandardCharsets.UTF_8);
             }
             url += "&order=nombre.asc";
 
@@ -860,7 +854,7 @@ public class PostgresDatabaseService implements DatabaseService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo libros desde timestamp: " + e.getMessage());
         }
         return list;
     }
@@ -906,7 +900,7 @@ public class PostgresDatabaseService implements DatabaseService {
             }
             resultado.sort((a, b) -> Double.compare(b.getValor(), a.getValor()));
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Postgres] Error obteniendo PPM por libro terminado: " + e.getMessage());
         }
         return resultado;
     }

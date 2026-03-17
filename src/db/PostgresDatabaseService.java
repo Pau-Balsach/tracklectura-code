@@ -164,8 +164,9 @@ public class PostgresDatabaseService implements DatabaseService {
         try {
             String userId = SupabaseAuthService.getCurrentUserId();
             HttpRequest req = baseRequest()
-                    .uri(URI.create(getBaseUrl() + "/libros?nombre=eq." + URLEncoder.encode(nombre, StandardCharsets.UTF_8)
-                            + "&user_id=eq." + userId + "&select=id"))
+                    .uri(URI.create(
+                            getBaseUrl() + "/libros?nombre=eq." + URLEncoder.encode(nombre, StandardCharsets.UTF_8)
+                                    + "&user_id=eq." + userId + "&select=id"))
                     .GET()
                     .build();
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -433,8 +434,6 @@ public class PostgresDatabaseService implements DatabaseService {
         return list.stream().mapToDouble(Sesion::getPph).average().orElse(0.0);
     }
 
-
-
     @Override
     public double obtenerVelocidadMaxima(int libroId) {
         List<Sesion> list = obtenerSesionesPorLibro(libroId);
@@ -676,7 +675,8 @@ public class PostgresDatabaseService implements DatabaseService {
                     }
                     case "pph" -> val = diaList.stream().mapToDouble(Sesion::getPph).average().orElse(0);
                     case "minutos" -> val = diaList.stream().mapToDouble(Sesion::getMinutos).sum();
-                    default -> { /* columna desconocida, val=0 */ }
+                    default -> {
+                        /* columna desconocida, val=0 */ }
                 }
 
                 if (esDual) {
@@ -693,10 +693,14 @@ public class PostgresDatabaseService implements DatabaseService {
                 switch (column) {
                     case "paginas" -> val = s.getPaginasLeidas();
                     case "pag_fin" -> val = s.getPaginaFin();
-                    case "ppm" -> { val = s.getPpm(); valSec = s.getPaginasLeidas(); }
+                    case "ppm" -> {
+                        val = s.getPpm();
+                        valSec = s.getPaginasLeidas();
+                    }
                     case "pph" -> val = s.getPph();
                     case "minutos" -> val = s.getMinutos();
-                    default -> { /* columna desconocida, val=0 */ }
+                    default -> {
+                        /* columna desconocida, val=0 */ }
                 }
 
                 if (esDual) {
@@ -751,6 +755,13 @@ public class PostgresDatabaseService implements DatabaseService {
             }
         }
         return data;
+    }
+
+    @Override
+    public List<String[]> obtenerDatosParaExportarTodos(String fFiltro, int minPag, boolean agrupar) {
+        // El servicio remoto no implementa esta operación compuesta;
+        // SQLiteSyncService la resuelve localmente con un JOIN.
+        return new ArrayList<>();
     }
 
     @Override

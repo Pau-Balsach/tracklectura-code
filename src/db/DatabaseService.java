@@ -45,8 +45,6 @@ public interface DatabaseService {
 
         double obtenerPromedioPPH(int libroId);
 
-
-
         double obtenerVelocidadMaxima(int libroId);
 
         double obtenerSesionMasLarga(int libroId);
@@ -95,5 +93,11 @@ public interface DatabaseService {
         boolean eliminarLibro(int libroId);
 
         List<DataPoint> obtenerPpmMediaPorLibroTerminado();
+
+        /**
+         * Exporta sesiones de todos los libros del usuario con columna Libro incluida.
+         * Columnas: Libro;Fecha;Capítulo;Páginas;Minutos;PPM;PPH
+         */
+        List<String[]> obtenerDatosParaExportarTodos(String fFiltro, int minPag, boolean agrupar);
 
 }

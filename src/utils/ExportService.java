@@ -36,10 +36,8 @@ public class ExportService {
 
                 writer.write('\ufeff'); // BOM para compatibilidad con Excel
 
-                String[] cabecera = { "Fecha", "Capítulo", "Páginas", "Minutos", "PPM", "PPH" };
-                writer.write(String.join(";", cabecera));
-                writer.newLine();
-
+                // La primera fila de 'datos' es siempre la cabecera,
+                // construida por el llamador según la métrica activa.
                 for (String[] fila : datos) {
                     writer.write(String.join(";", fila));
                     writer.newLine();

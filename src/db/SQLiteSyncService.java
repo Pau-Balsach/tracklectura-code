@@ -870,16 +870,140 @@ public class SQLiteSyncService implements DatabaseService {
 
     @Override
     public List<String[]> obtenerDatosParaExportar(int libroId, int minPag, String fFiltro, boolean agrupar) {
-        if (!utils.ConfigManager.isOfflineMode() && !isOffline) {
-            try {
-                List<String[]> remoteResult = remote.obtenerDatosParaExportar(libroId, minPag, fFiltro, agrupar);
-                if (remoteResult != null && !remoteResult.isEmpty())
-                    return remoteResult;
-            } catch (Exception e) {
-                System.err.println("[SQLiteSync] Fallo remoto en obtenerDatosParaExportar: " + e.getMessage());
+        // Consulta local SQLite — siempre disponible, incluso en modo offline
+        String uid = getLocalUserId();
+        List<String[]> data = new ArrayList<>();
+        String fFiltroEfectivo = (fFiltro == null || fFiltro.isBlank()) ? "01/01/2000" : fFiltro;
+        try {
+            String sql = "SELECT s.fecha, s.capitulo, s.paginas_leidas, s.minutos, s.ppm, s.pph " +
+                    "FROM sesiones s " +
+                    "WHERE s.libro_id = ? AND s.user_id = ? AND s.paginas_leidas >= ? " +
+                    "ORDER BY s.fecha ASC";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, libroId);
+                ps.setString(2, uid);
+                ps.setInt(3, minPag);
+                ResultSet rs = ps.executeQuery();
+                List<model.Sesion> sesiones = new ArrayList<>();
+                while (rs.next()) {
+                    String fecha = rs.getString("fecha");
+                    if (fecha != null && fecha.compareTo(fFiltroEfectivo) < 0)
+                        continue;
+                    sesiones.add(new model.Sesion(
+                            0, "", libroId, fecha,
+                            rs.getString("capitulo"),
+                            0, 0,
+                            rs.getInt("paginas_leidas"),
+                            rs.getDouble("minutos"),
+                            rs.getDouble("ppm"),
+                            rs.getDouble("pph")));
+                }
+                if (agrupar) {
+                    java.util.LinkedHashMap<String, List<model.Sesion>> porDia = new java.util.LinkedHashMap<>();
+                    for (model.Sesion s : sesiones) {
+                        String dia = s.getFecha() != null
+                                ? s.getFecha().substring(0, Math.min(10, s.getFecha().length()))
+                                : "N/A";
+                        porDia.computeIfAbsent(dia, k -> new ArrayList<>()).add(s);
+                    }
+                    for (Map.Entry<String, List<model.Sesion>> entry : porDia.entrySet()) {
+                        List<model.Sesion> dl = entry.getValue();
+                        String cap = dl.stream().map(model.Sesion::getCapitulo).filter(c -> c != null && !c.isEmpty())
+                                .collect(java.util.stream.Collectors.joining("|"));
+                        int pags = dl.stream().mapToInt(model.Sesion::getPaginasLeidas).sum();
+                        double mins = dl.stream().mapToDouble(model.Sesion::getMinutos).sum();
+                        double ppm = dl.stream().mapToDouble(model.Sesion::getPpm).average().orElse(0);
+                        double pph = dl.stream().mapToDouble(model.Sesion::getPph).average().orElse(0);
+                        data.add(new String[] { entry.getKey(), cap.isEmpty() ? "N/A" : cap,
+                                String.valueOf(pags), String.format(java.util.Locale.US, "%.1f", mins),
+                                String.format(java.util.Locale.US, "%.2f", ppm),
+                                String.format(java.util.Locale.US, "%.2f", pph) });
+                    }
+                } else {
+                    for (model.Sesion s : sesiones) {
+                        String cap = s.getCapitulo();
+                        data.add(new String[] { s.getFecha(), cap == null || cap.isEmpty() ? "N/A" : cap,
+                                String.valueOf(s.getPaginasLeidas()),
+                                String.format(java.util.Locale.US, "%.1f", s.getMinutos()),
+                                String.format(java.util.Locale.US, "%.2f", s.getPpm()),
+                                String.format(java.util.Locale.US, "%.2f", s.getPph()) });
+                    }
+                }
             }
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error en obtenerDatosParaExportar local: " + e.getMessage());
         }
-        return new ArrayList<>();
+        return data;
+    }
+
+    /**
+     * Exporta sesiones de TODOS los libros del usuario, incluyendo el nombre del
+     * libro
+     * como primera columna. Columnas: Libro;Fecha;Capítulo;Páginas;Minutos;PPM;PPH
+     */
+    @Override
+    public List<String[]> obtenerDatosParaExportarTodos(String fFiltro, int minPag, boolean agrupar) {
+        String uid = getLocalUserId();
+        List<String[]> data = new ArrayList<>();
+        String fFiltroEfectivo = (fFiltro == null || fFiltro.isBlank()) ? "01/01/2000" : fFiltro;
+        try {
+            String sql = "SELECT l.nombre AS libro, s.fecha, s.capitulo, s.paginas_leidas, s.minutos, s.ppm, s.pph " +
+                    "FROM sesiones s JOIN libros l ON s.libro_id = l.id " +
+                    "WHERE s.user_id = ? AND s.paginas_leidas >= ? " +
+                    "ORDER BY s.fecha ASC, l.nombre ASC";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, uid);
+                ps.setInt(2, minPag);
+                ResultSet rs = ps.executeQuery();
+                List<String[]> raw = new ArrayList<>();
+                while (rs.next()) {
+                    String fecha = rs.getString("fecha");
+                    if (fecha != null && fecha.compareTo(fFiltroEfectivo) < 0)
+                        continue;
+                    raw.add(new String[] {
+                            rs.getString("libro"),
+                            fecha,
+                            rs.getString("capitulo"),
+                            String.valueOf(rs.getInt("paginas_leidas")),
+                            String.format(java.util.Locale.US, "%.1f", rs.getDouble("minutos")),
+                            String.format(java.util.Locale.US, "%.2f", rs.getDouble("ppm")),
+                            String.format(java.util.Locale.US, "%.2f", rs.getDouble("pph"))
+                    });
+                }
+                if (agrupar) {
+                    // Agrupar por libro+fecha
+                    java.util.LinkedHashMap<String, List<String[]>> grupos = new java.util.LinkedHashMap<>();
+                    for (String[] r : raw) {
+                        String key = r[0] + "|" + r[1].substring(0, Math.min(10, r[1].length()));
+                        grupos.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
+                    }
+                    for (Map.Entry<String, List<String[]>> entry : grupos.entrySet()) {
+                        List<String[]> g = entry.getValue();
+                        String libro = g.getFirst()[0];
+                        String fecha = g.getFirst()[1].substring(0, Math.min(10, g.getFirst()[1].length()));
+                        String cap = g.stream().map(r -> r[2]).filter(c -> c != null && !c.isEmpty())
+                                .collect(java.util.stream.Collectors.joining("|"));
+                        int pags = g.stream().mapToInt(r -> Integer.parseInt(r[3])).sum();
+                        double mins = g.stream().mapToDouble(r -> Double.parseDouble(r[4])).sum();
+                        double ppm = g.stream().mapToDouble(r -> Double.parseDouble(r[5])).average().orElse(0);
+                        double pph = g.stream().mapToDouble(r -> Double.parseDouble(r[6])).average().orElse(0);
+                        data.add(new String[] { libro, fecha, cap.isEmpty() ? "N/A" : cap,
+                                String.valueOf(pags), String.format(java.util.Locale.US, "%.1f", mins),
+                                String.format(java.util.Locale.US, "%.2f", ppm),
+                                String.format(java.util.Locale.US, "%.2f", pph) });
+                    }
+                } else {
+                    for (String[] r : raw) {
+                        String cap = r[2];
+                        data.add(new String[] { r[0], r[1], cap == null || cap.isEmpty() ? "N/A" : cap, r[3], r[4],
+                                r[5], r[6] });
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[SQLiteSync] Error en obtenerDatosParaExportarTodos: " + e.getMessage());
+        }
+        return data;
     }
 
     @Override

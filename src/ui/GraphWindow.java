@@ -16,10 +16,11 @@ import java.util.List;
  * <p>
  * Responsabilidades de esta clase:
  * <ul>
- *   <li>Construir y disponer los paneles de la ventana (filtros, gráfica, hitos)</li>
- *   <li>Gestionar eventos de la UI (cambio de métrica, libro, botones)</li>
- *   <li>Delegar la obtención de datos a {@link GraphDataProcessor}</li>
- *   <li>Instanciar el panel de gráfica correcto según la métrica</li>
+ * <li>Construir y disponer los paneles de la ventana (filtros, gráfica,
+ * hitos)</li>
+ * <li>Gestionar eventos de la UI (cambio de métrica, libro, botones)</li>
+ * <li>Delegar la obtención de datos a {@link GraphDataProcessor}</li>
+ * <li>Instanciar el panel de gráfica correcto según la métrica</li>
  * </ul>
  * <p>
  * Los paneles de renderizado viven en {@code ui.charts.*}.<br>
@@ -28,7 +29,7 @@ import java.util.List;
 public class GraphWindow extends JFrame {
 
     // ── Estado ────────────────────────────────────────────────────────────────
-    private String  libroSeleccionado;
+    private String libroSeleccionado;
     private final boolean modoOscuro;
     private boolean hitosAbiertosUsuario = true;
 
@@ -39,12 +40,12 @@ public class GraphWindow extends JFrame {
 
     // ── Controles de filtro ───────────────────────────────────────────────────
     private JComboBox<String> comboMetrica;
-    private BookSearchField   libroSearchField;
-    private JTextField        fieldMinPag, fieldFecha;
-    private JCheckBox         checkAgrupar, checkCapitulo;
-    private JButton           btnExportarPNG, btnVerHitos;
-    private JLabel            lblLibro, lblProgreso, lblMinPag, lblFecha, labelEstimacion;
-    private JProgressBar      barraProgreso;
+    private BookSearchField libroSearchField;
+    private JTextField fieldMinPag, fieldFecha;
+    private JCheckBox checkAgrupar, checkCapitulo;
+    private JButton btnActualizar, btnExportarPNG, btnVerHitos;
+    private JLabel lblLibro, lblProgreso, lblMinPag, lblFecha, labelEstimacion;
+    private JProgressBar barraProgreso;
 
     // ── Hitos personales ──────────────────────────────────────────────────────
     private JLabel lblSesionLarga, lblDiaRecord, lblVelocidadMax;
@@ -53,7 +54,7 @@ public class GraphWindow extends JFrame {
 
     public GraphWindow(boolean modoOscuro, String libroInicial) {
         super("📊 Análisis y Gráficas");
-        this.modoOscuro        = modoOscuro;
+        this.modoOscuro = modoOscuro;
         this.libroSeleccionado = libroInicial;
 
         setSize(1200, 750);
@@ -82,9 +83,9 @@ public class GraphWindow extends JFrame {
         construirContenedor();
         construirPanelHitos(fondo, texto);
 
-        add(container,    BorderLayout.CENTER);
-        add(filterPanel,  BorderLayout.SOUTH);
-        add(panelHitos,   BorderLayout.EAST);
+        add(container, BorderLayout.CENTER);
+        add(filterPanel, BorderLayout.SOUTH);
+        add(panelHitos, BorderLayout.EAST);
 
         conectarEventos();
         refrescarGrafica();
@@ -97,7 +98,7 @@ public class GraphWindow extends JFrame {
         filterPanel.setBackground(fondo);
 
         // Métrica
-        comboMetrica = new JComboBox<>(new String[]{
+        comboMetrica = new JComboBox<>(new String[] {
                 "Páginas Totales", "PPM (Velocidad)", "Progreso Acumulado",
                 "Meta Anual", "Evolución Mensual",
                 "Páginas por día de la semana", "Actividad por Hora",
@@ -123,24 +124,26 @@ public class GraphWindow extends JFrame {
             }
         });
 
-        lblLibro   = crearLabel("Libro:", texto);
+        lblLibro = crearLabel("Libro:", texto);
         fieldMinPag = new JTextField("0", 4);
-        fieldFecha  = new JTextField("", 8);
-        lblMinPag  = crearLabel("Pág >:", texto);
-        lblFecha   = crearLabel("Fecha:", texto);
+        fieldFecha = new JTextField("", 8);
+        lblMinPag = crearLabel("Pág >:", texto);
+        lblFecha = crearLabel("Fecha:", texto);
 
-        checkAgrupar  = new JCheckBox("Agrupar", true);
+        checkAgrupar = new JCheckBox("Agrupar", true);
         checkCapitulo = new JCheckBox("Capítulos", false);
-        checkAgrupar.setBackground(fondo);  checkAgrupar.setForeground(texto);
-        checkCapitulo.setBackground(fondo); checkCapitulo.setForeground(texto);
+        checkAgrupar.setBackground(fondo);
+        checkAgrupar.setForeground(texto);
+        checkCapitulo.setBackground(fondo);
+        checkCapitulo.setForeground(texto);
 
-        JButton btnActualizar  = new JButton("🔄 Filtros");
-        JButton btnRuta        = new JButton("📁 Carpeta");
-        btnExportarPNG         = new JButton("💾 PNG");
+        btnActualizar = new JButton("🔄 Filtros");
+        JButton btnRuta = new JButton("📁 Carpeta");
+        btnExportarPNG = new JButton("💾 PNG");
         JButton btnExportarCSV = new JButton("📥 CSV");
-        btnVerHitos            = new JButton("🏆 Récords");
+        btnVerHitos = new JButton("🏆 Récords");
 
-        for (JButton b : new JButton[]{btnActualizar, btnRuta, btnExportarPNG, btnExportarCSV, btnVerHitos})
+        for (JButton b : new JButton[] { btnActualizar, btnRuta, btnExportarPNG, btnExportarCSV, btnVerHitos })
             configurarBotonPlano(b);
         btnVerHitos.setVisible(false);
 
@@ -179,7 +182,8 @@ public class GraphWindow extends JFrame {
 
         // Listener del combo (visibilidad de controles)
         comboMetrica.addItemListener(e -> {
-            if (e.getStateChange() != java.awt.event.ItemEvent.SELECTED) return;
+            if (e.getStateChange() != java.awt.event.ItemEvent.SELECTED)
+                return;
             actualizarVisibilidadFiltros();
             refrescarGrafica();
         });
@@ -229,21 +233,26 @@ public class GraphWindow extends JFrame {
             revalidate();
         });
 
-        lblSesionLarga  = new JLabel();
-        lblDiaRecord    = new JLabel();
+        lblSesionLarga = new JLabel();
+        lblDiaRecord = new JLabel();
         lblVelocidadMax = new JLabel();
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0; gbc.gridy = 0; gbc.weighty = 0;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weighty = 0;
         gbc.anchor = GridBagConstraints.NORTHEAST;
         panelHitos.add(btnCerrar, gbc);
 
         gbc.weighty = 1.0;
-        gbc.fill    = GridBagConstraints.HORIZONTAL;
-        gbc.anchor  = GridBagConstraints.CENTER;
-        gbc.gridy   = 1; panelHitos.add(lblSesionLarga, gbc);
-        gbc.gridy   = 2; panelHitos.add(lblDiaRecord,   gbc);
-        gbc.gridy   = 3; panelHitos.add(lblVelocidadMax, gbc);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.CENTER;
+        gbc.gridy = 1;
+        panelHitos.add(lblSesionLarga, gbc);
+        gbc.gridy = 2;
+        panelHitos.add(lblDiaRecord, gbc);
+        gbc.gridy = 3;
+        panelHitos.add(lblVelocidadMax, gbc);
     }
 
     // ── Eventos ───────────────────────────────────────────────────────────────
@@ -261,40 +270,66 @@ public class GraphWindow extends JFrame {
     // Visibilidad de controles según métrica
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Tabla de visibilidad de controles por métrica.
+     *
+     * <pre>
+     * Métrica                        | Libro | Pág> | Fecha | Agrup | Cap | Filtros | Barra | Hitos
+     * -------------------------------|-------|------|-------|-------|-----|---------|-------|------
+     * Páginas Totales                |  ✓    |  ✓   |  ✓    |  ✓    |  ✓  |   ✓     |  ✓    |  ✓
+     * PPM (Velocidad)                |  ✓    |  ✓   |  ✓    |  ✓    |  ✓  |   ✓     |  ✓    |  ✓
+     * Progreso Acumulado             |  ✓    |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✓    |  ✓
+     * Meta Anual                     |  ✗    |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * Evolución Mensual              |  ✗    |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * Páginas por día de la semana   |  ✓*   |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * Actividad por Hora             |  ✓*   |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * PPM Comparativa                |  ✗    |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * Correlación: Minutos vs PPM    |  ✓*   |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * Mapa de Consistencia           |  ✗    |  ✗   |  ✗    |  ✗    |  ✗  |   ✗     |  ✗    |  ✗
+     * </pre>
+     * 
+     * ✓* = soporta "Todos los libros" además del selector individual.
+     */
     private void actualizarVisibilidadFiltros() {
         String sel = (String) comboMetrica.getSelectedItem();
-        boolean esComparativo     = esMetricaComparativa(sel);
-        boolean esAcumulado       = "Progreso Acumulado".equals(sel);
-        boolean esScatter         = "Correlación: Minutos vs PPM".equals(sel);
-        boolean esMetricaSinFiltro = "Páginas por día de la semana".equals(sel)
-                || "Actividad por Hora".equals(sel);
 
+        // ── Clasificación de la métrica ───────────────────────────────────────
+        boolean esEstandar = "Páginas Totales".equals(sel) || "PPM (Velocidad)".equals(sel);
+        boolean esAcumulado = "Progreso Acumulado".equals(sel);
         boolean soportaTodos = "Páginas por día de la semana".equals(sel)
                 || "Actividad por Hora".equals(sel)
                 || "Correlación: Minutos vs PPM".equals(sel);
+        boolean muestraLibro = esEstandar || esAcumulado || soportaTodos;
+        boolean muestraBarraHitos = esEstandar || esAcumulado || soportaTodos;
 
-        // Actualizar lista de libros según si la métrica soporta "Todos"
+        // ── Actualizar lista de libros ────────────────────────────────────────
         List<String> lbros = DatabaseManager.obtenerTodosLosLibros();
-        if (soportaTodos) lbros.addFirst("--- Todos los libros ---");
+        if (soportaTodos)
+            lbros.addFirst("--- Todos los libros ---");
         String prevSel = libroSeleccionado;
         libroSearchField.setBooks(lbros);
         if (!soportaTodos && "--- Todos los libros ---".equals(prevSel)) {
             libroSeleccionado = lbros.isEmpty() ? null : lbros.getFirst();
         }
-        if (libroSeleccionado != null) libroSearchField.setSelectedBook(libroSeleccionado);
+        if (libroSeleccionado != null)
+            libroSearchField.setSelectedBook(libroSeleccionado);
 
-        lblLibro.setVisible(!esComparativo || esAcumulado);
-        libroSearchField.setVisible(!esComparativo || esAcumulado);
-        lblMinPag.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltro);
-        fieldMinPag.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltro);
-        lblFecha.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltro);
-        fieldFecha.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltro);
-        checkAgrupar.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltro);
-        checkCapitulo.setVisible(!esComparativo && !esScatter && !esMetricaSinFiltro);
-        lblProgreso.setVisible(!esComparativo);
-        barraProgreso.setVisible(!esComparativo);
+        // ── Visibilidad de controles ──────────────────────────────────────────
+        lblLibro.setVisible(muestraLibro);
+        libroSearchField.setVisible(muestraLibro);
 
-        if (!esComparativo) {
+        lblMinPag.setVisible(esEstandar);
+        fieldMinPag.setVisible(esEstandar);
+        lblFecha.setVisible(esEstandar);
+        fieldFecha.setVisible(esEstandar);
+        checkAgrupar.setVisible(esEstandar);
+        checkCapitulo.setVisible(esEstandar);
+        btnActualizar.setVisible(esEstandar);
+
+        lblProgreso.setVisible(muestraBarraHitos);
+        barraProgreso.setVisible(muestraBarraHitos);
+
+        if (muestraBarraHitos && (esEstandar || esAcumulado)) {
             panelHitos.setVisible(hitosAbiertosUsuario);
             btnVerHitos.setVisible(!hitosAbiertosUsuario);
         } else {
@@ -313,12 +348,14 @@ public class GraphWindow extends JFrame {
 
     private void refrescarGrafica() {
         String metrica = (String) comboMetrica.getSelectedItem();
-        if (metrica == null) return;
+        if (metrica == null)
+            return;
 
         // Sincronizar libro seleccionado desde el campo
         if (!esMetricaComparativa(metrica)) {
             String sel = libroSearchField.getSelectedBook();
-            if (sel != null) libroSeleccionado = sel;
+            if (sel != null)
+                libroSeleccionado = sel;
         }
 
         // Sin libro para métricas individuales → mensaje vacío
@@ -327,9 +364,10 @@ public class GraphWindow extends JFrame {
             return;
         }
 
-        int minPag = parsearEntero(fieldMinPag.getText());
+        int minPag = parsearEntero(fieldMinPag.getText(), 0);
         String fechaFiltro = fieldFecha.getText().trim().isEmpty()
-                ? "01/01/2000" : fieldFecha.getText().trim();
+                ? "01/01/2000"
+                : fieldFecha.getText().trim();
 
         // Obtener datos
         GraphDataProcessor.GraphData data = GraphDataProcessor.obtener(
@@ -351,7 +389,7 @@ public class GraphWindow extends JFrame {
 
         // Construir y mostrar el panel de gráfica
         JPanel panel = construirPanel(metrica, data);
-        mostrarPanel(panel);
+        mostrarPanel(panel, metrica);
     }
 
     // ── Construcción del panel correcto ───────────────────────────────────────
@@ -407,13 +445,12 @@ public class GraphWindow extends JFrame {
         };
     }
 
-    private void mostrarPanel(JPanel panel) {
+    private void mostrarPanel(JPanel panel, String metrica) {
         // Reconectar listener de exportación PNG al panel actual
         for (var al : btnExportarPNG.getActionListeners())
             btnExportarPNG.removeActionListener(al);
-        btnExportarPNG.addActionListener(ignored ->
-                ExportService.exportarAPNG(panel,
-                        libroSeleccionado != null ? libroSeleccionado : "comparativa"));
+        btnExportarPNG.addActionListener(ignored -> ExportService.exportarAPNG(panel,
+                libroSeleccionado != null ? libroSeleccionado : "comparativa"));
 
         container.removeAll();
         JScrollPane scroll = new JScrollPane(panel);
@@ -440,7 +477,8 @@ public class GraphWindow extends JFrame {
         boolean esGlobal = esMetricaGlobal(metrica);
         if (esGlobal || libroSeleccionado == null) {
             barraProgreso.setVisible(false);
-            if (lblProgreso != null) lblProgreso.setVisible(false);
+            if (lblProgreso != null)
+                lblProgreso.setVisible(false);
             labelEstimacion.setText("");
             labelEstimacion.setVisible(false);
             panelHitos.setVisible(false);
@@ -450,16 +488,18 @@ public class GraphWindow extends JFrame {
 
         if ("--- Todos los libros ---".equals(libroSeleccionado)) {
             barraProgreso.setVisible(false);
-            if (lblProgreso != null) lblProgreso.setVisible(false);
+            if (lblProgreso != null)
+                lblProgreso.setVisible(false);
             labelEstimacion.setText("");
             labelEstimacion.setVisible(false);
             panelHitos.setVisible(false);
             btnVerHitos.setVisible(false);
         } else {
             barraProgreso.setVisible(true);
-            if (lblProgreso != null) lblProgreso.setVisible(true);
-            int libroId    = DatabaseManager.obtenerLibroId(libroSeleccionado);
-            double pct     = DatabaseManager.obtenerPorcentajeProgreso(libroId);
+            if (lblProgreso != null)
+                lblProgreso.setVisible(true);
+            int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
+            double pct = DatabaseManager.obtenerPorcentajeProgreso(libroId);
             barraProgreso.setValue((int) pct);
             barraProgreso.setToolTipText("Has leído el " + String.format("%.1f", pct) + "% del libro");
             labelEstimacion.setText("");
@@ -469,14 +509,15 @@ public class GraphWindow extends JFrame {
     }
 
     private void cargarHitosPersonales() {
-        if (libroSeleccionado == null) return;
+        if (libroSeleccionado == null)
+            return;
         int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
-        double maxMin  = DatabaseManager.obtenerSesionMasLarga(libroId);
-        String diaRec  = DatabaseManager.obtenerDiaMasLectura(libroId);
-        double maxPpm  = DatabaseManager.obtenerVelocidadMaxima(libroId);
+        double maxMin = DatabaseManager.obtenerSesionMasLarga(libroId);
+        String diaRec = DatabaseManager.obtenerDiaMasLectura(libroId);
+        double maxPpm = DatabaseManager.obtenerVelocidadMaxima(libroId);
 
         String cR = modoOscuro ? "#87CEFA" : "#00509E";
-        String cT = modoOscuro ? "white"   : "black";
+        String cT = modoOscuro ? "white" : "black";
         String base = "<html><div style='text-align: center; width: 190px;'>";
 
         lblSesionLarga.setText(base
@@ -510,27 +551,144 @@ public class GraphWindow extends JFrame {
         }
     }
 
+    /**
+     * Exporta a CSV con cabecera y datos adaptados a la métrica activa.
+     *
+     * <table>
+     * <tr>
+     * <th>Métrica</th>
+     * <th>Cabecera</th>
+     * <th>Nombre archivo</th>
+     * </tr>
+     * <tr>
+     * <td>PPM Comparativa</td>
+     * <td>Libro;PPM Media</td>
+     * <td>PPM_Comparativa…</td>
+     * </tr>
+     * <tr>
+     * <td>Evolución Mensual</td>
+     * <td>Mes;Páginas</td>
+     * <td>Evolucion_Mensual</td>
+     * </tr>
+     * <tr>
+     * <td>Páginas por día de la semana</td>
+     * <td>Día;Páginas</td>
+     * <td>Paginas_Por_Dia_Semana</td>
+     * </tr>
+     * <tr>
+     * <td>Actividad por Hora</td>
+     * <td>Hora;Páginas</td>
+     * <td>Actividad_Por_Hora</td>
+     * </tr>
+     * <tr>
+     * <td>Correlación: Minutos vs PPM</td>
+     * <td>Minutos;PPM</td>
+     * <td>Correlacion_Minutos_PPM</td>
+     * </tr>
+     * <tr>
+     * <td>Mapa de Consistencia</td>
+     * <td>Fecha;Páginas</td>
+     * <td>Mapa_Consistencia</td>
+     * </tr>
+     * <tr>
+     * <td>Meta Anual</td>
+     * <td>Libro;Estado</td>
+     * <td>Meta_Anual</td>
+     * </tr>
+     * <tr>
+     * <td>Todos los libros (métricas estándar)</td>
+     * <td>Libro;Fecha;Capítulo;Páginas;Minutos;PPM;PPH</td>
+     * </tr>
+     * <tr>
+     * <td>Libro individual</td>
+     * <td>Fecha;Capítulo;Páginas;Minutos;PPM;PPH</td>
+     * </tr>
+     * </table>
+     */
     private void exportarCSV() {
-        String metricaSel = (String) comboMetrica.getSelectedItem();
-        String nombreArchivo = "PPM Comparativa".equals(metricaSel)
-                ? "PPM_Comparativa_Libros_Terminados"
-                : libroSeleccionado;
-        if (nombreArchivo == null) return;
+        String metrica = (String) comboMetrica.getSelectedItem();
+        if (metrica == null)
+            return;
 
-        List<String[]> datos;
-        if ("PPM Comparativa".equals(metricaSel)) {
-            List<DataPoint> dp = DatabaseManager.obtenerPpmMediaPorLibroTerminado();
-            datos = new java.util.ArrayList<>();
-            datos.add(new String[]{"Libro", "PPM Media"});
-            for (DataPoint p : dp)
-                datos.add(new String[]{p.getEtiqueta(), String.format("%.2f", p.getValor())});
-        } else {
-            int libroId    = DatabaseManager.obtenerLibroId(libroSeleccionado);
-            int minPag     = parsearEntero(fieldMinPag.getText());
-            String fFiltro = fieldFecha.getText().trim().isEmpty() ? "01/01/2000" : fieldFecha.getText();
-            datos = DatabaseManager.obtenerDatosParaExportar(
-                    libroId, minPag, fFiltro, checkAgrupar.isSelected());
+        List<String[]> datos = new java.util.ArrayList<>();
+        String nombreArchivo;
+
+        switch (metrica) {
+            case "PPM Comparativa" -> {
+                nombreArchivo = "PPM_Comparativa_Libros_Terminados";
+                datos.add(new String[] { "Libro", "PPM Media" });
+                for (DataPoint p : DatabaseManager.obtenerPpmMediaPorLibroTerminado())
+                    datos.add(new String[] { p.getEtiqueta(), String.format("%.2f", p.getValor()) });
+            }
+            case "Evolución Mensual" -> {
+                nombreArchivo = "Evolucion_Mensual";
+                datos.add(new String[] { "Mes", "Páginas" });
+                GraphDataProcessor.GraphData d = GraphDataProcessor.obtener(
+                        metrica, libroSeleccionado, 0, "", false, false);
+                for (int i = 0; i < d.fechas().size(); i++)
+                    datos.add(new String[] { d.fechas().get(i), String.valueOf(d.valores().get(i).intValue()) });
+            }
+            case "Páginas por día de la semana" -> {
+                nombreArchivo = "Paginas_Por_Dia_Semana";
+                datos.add(new String[] { "Día", "Páginas" });
+                GraphDataProcessor.GraphData d = GraphDataProcessor.obtener(
+                        metrica, libroSeleccionado, 0, "", false, false);
+                for (int i = 0; i < d.fechas().size(); i++)
+                    datos.add(new String[] { d.fechas().get(i), String.valueOf(d.valores().get(i).intValue()) });
+            }
+            case "Actividad por Hora" -> {
+                nombreArchivo = "Actividad_Por_Hora";
+                datos.add(new String[] { "Hora", "Páginas" });
+                GraphDataProcessor.GraphData d = GraphDataProcessor.obtener(
+                        metrica, libroSeleccionado, 0, "", false, false);
+                for (int i = 0; i < d.fechas().size(); i++)
+                    datos.add(new String[] { d.fechas().get(i), String.valueOf(d.valores().get(i).intValue()) });
+            }
+            case "Correlación: Minutos vs PPM" -> {
+                nombreArchivo = "Correlacion_Minutos_PPM";
+                datos.add(new String[] { "Minutos", "PPM" });
+                GraphDataProcessor.GraphData d = GraphDataProcessor.obtener(
+                        metrica, libroSeleccionado, 0, "", false, false);
+                for (int i = 0; i < d.fechas().size(); i++)
+                    datos.add(new String[] { d.fechas().get(i),
+                            String.format("%.2f", d.valores().get(i)) });
+            }
+            case "Mapa de Consistencia" -> {
+                nombreArchivo = "Mapa_Consistencia";
+                datos.add(new String[] { "Fecha", "Páginas" });
+                GraphDataProcessor.GraphData d = GraphDataProcessor.obtener(
+                        metrica, libroSeleccionado, 0, "", false, false);
+                for (int i = 0; i < d.fechas().size(); i++)
+                    datos.add(new String[] { d.fechas().get(i), String.valueOf(d.valores().get(i).intValue()) });
+            }
+            case "Meta Anual" -> {
+                nombreArchivo = "Meta_Anual";
+                datos.add(new String[] { "Libro", "Estado" });
+                for (model.Libro l : DatabaseManager.obtenerTodosLosLibrosDesde("1970-01-01"))
+                    datos.add(new String[] { l.getNombre(), l.getEstado() });
+            }
+            default -> {
+                // Métricas estándar: libro individual o "todos los libros"
+                boolean todosTodos = "--- Todos los libros ---".equals(libroSeleccionado);
+                int minPag = parsearEntero(fieldMinPag.getText(), 0);
+                String fFiltro = fieldFecha.getText().isBlank() ? "01/01/2000" : fieldFecha.getText();
+                boolean agrupar = checkAgrupar.isSelected();
+
+                if (todosTodos) {
+                    nombreArchivo = "Todos_Los_Libros_" + metrica.replace(" ", "_");
+                    datos.add(new String[] { "Libro", "Fecha", "Capítulo", "Páginas", "Minutos", "PPM", "PPH" });
+                    datos.addAll(DatabaseManager.obtenerDatosParaExportarTodos(fFiltro, minPag, agrupar));
+                } else {
+                    if (libroSeleccionado == null)
+                        return;
+                    nombreArchivo = libroSeleccionado;
+                    datos.add(new String[] { "Fecha", "Capítulo", "Páginas", "Minutos", "PPM", "PPH" });
+                    int libroId = DatabaseManager.obtenerLibroId(libroSeleccionado);
+                    datos.addAll(DatabaseManager.obtenerDatosParaExportar(libroId, minPag, fFiltro, agrupar));
+                }
+            }
         }
+
         ExportService.exportarDatosCSV(datos, nombreArchivo);
     }
 
@@ -554,11 +712,11 @@ public class GraphWindow extends JFrame {
                 || "Evolución Mensual".equals(m);
     }
 
-    private static int parsearEntero(String texto) {
+    private static int parsearEntero(String texto, int valorDefecto) {
         try {
             return Integer.parseInt(texto.trim());
         } catch (NumberFormatException e) {
-            return 0;
+            return valorDefecto;
         }
     }
 

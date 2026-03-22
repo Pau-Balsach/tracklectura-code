@@ -16,7 +16,7 @@ Aplicación de escritorio para registrar y analizar tus hábitos de lectura. Per
 
 La forma más sencilla de usar TrackLectura en Windows es descargando el instalador oficial desde nuestra sección de lanzamientos:
 
-👉 **[Descargar TrackLectura v1.3.9 (.exe)](https://github.com/tracklectura/tracklectura-code/releases/latest/download/TrackLectura-1.3.9.exe)**
+👉 **[Descargar TrackLectura v1.3.9 (.exe)](https://github.com/Pau-Balsach/tracklectura-code/releases/latest/download/TrackLectura-1.3.9.exe)**
 
 > **Nota:** Si prefieres no instalar el programa en tu equipo o utilizas otro sistema operativo (Linux / macOS), puedes usar los comandos de compilación y ejecución que se detallan más abajo.
 
